@@ -21,10 +21,10 @@ async function tentarIniciarCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { ideal: 'environment' },   // câmera traseira
-        width: { ideal: 1920 },                 // alta resolução
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
         height: { ideal: 1080 },
-        focusMode: { ideal: 'continuous-picture' }, // hiperfoco contínuo
+        focusMode: { ideal: 'continuous-picture' },
         exposureMode: { ideal: 'continuous' },
         whiteBalanceMode: { ideal: 'continuous' }
       },
@@ -34,7 +34,6 @@ async function tentarIniciarCamera() {
     video.srcObject = stream;
     streamAtivo = stream;
 
-    // Aguardar o vídeo estar pronto (metadados carregados)
     await new Promise((resolve) => {
       video.onloadedmetadata = () => resolve();
       if (video.readyState >= 2) resolve();
@@ -46,11 +45,10 @@ async function tentarIniciarCamera() {
 
   } catch (erro) {
     console.warn('Não foi possível iniciar a câmera automaticamente:', erro.message);
-    // Fallback: mostrar botão para o usuário iniciar manualmente
     definirCameraPronta(false);
     iniciarCameraBtn.style.display = 'block';
     capturarBtn.textContent = '📷 Permitir Câmera';
-    capturarBtn.disabled = false; // habilita para que o usuário possa clicar e tentar de novo
+    capturarBtn.disabled = false;
   }
 }
 
@@ -66,22 +64,17 @@ function definirCameraPronta(pronto) {
   }
 }
 
-// Função chamada pelo botão "Permitir Câmera" (quando a automática falhou)
 async function iniciarCameraManual() {
-  // Esconde o botão enquanto tenta
   iniciarCameraBtn.style.display = 'none';
   capturarBtn.textContent = '⏳ Solicitando câmera...';
   capturarBtn.disabled = true;
   await tentarIniciarCamera();
 }
 
-// Adiciona evento ao botão de fallback
 iniciarCameraBtn.addEventListener('click', iniciarCameraManual);
 
-// Se o botão "Escanear" estiver habilitado mas a câmera não pronta, ele também pode chamar a inicialização
 capturarBtn.addEventListener('click', async (e) => {
   if (!cameraPronta) {
-    // Se a câmera não estiver pronta, trata como clique no botão de permissão
     e.preventDefault();
     await iniciarCameraManual();
     if (!cameraPronta) {
@@ -89,7 +82,6 @@ capturarBtn.addEventListener('click', async (e) => {
       return;
     }
   }
-  // Se câmera pronta, prossegue para escanear (abaixo)
 });
 
 // ==============================
@@ -98,17 +90,16 @@ capturarBtn.addEventListener('click', async (e) => {
 document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
 
 // ==============================
-// ESCANEAR (com estabilização de foco)
+// ESCANEAR (com estabilização)
 // ==============================
 capturarBtn.addEventListener('click', async () => {
-  if (!cameraPronta) return; // já tratado acima, mas redundância
+  if (!cameraPronta) return;
 
   if (!video.videoWidth) {
     alert('A câmera ainda não está pronta. Aguarde um instante.');
     return;
   }
 
-  // Pequena pausa para estabilizar o foco (semi-foto)
   await new Promise(resolve => setTimeout(resolve, 300));
 
   canvas.width = video.videoWidth;
@@ -136,13 +127,14 @@ capturarBtn.addEventListener('click', async () => {
 });
 
 // ==============================
-// PROCESSAR TEXTO (INTELIGENTE)
+// PROCESSAR TEXTO (FOCO TOTAL EM NOME E RUA)
 // ==============================
 function processarTexto(texto) {
   console.log('OCR ORIGINAL');
   console.log(texto);
 
-  texto = texto
+  // Limpeza inicial: remove quebras, barras, espaços duplicados e rótulos conhecidos
+  let limpo = texto
     .replace(/\n/g, ' ')
     .replace(/\|/g, ' ')
     .replace(/\s+/g, ' ')
@@ -151,38 +143,74 @@ function processarTexto(texto) {
     .trim();
 
   console.log('OCR LIMPO');
-  console.log(texto);
+  console.log(limpo);
 
+  // Palavras-chave que indicam logradouro (com pequenas variações de OCR)
   const regexEndereco =
-    /\b(RUA|R |AVENIDA|AV |ESTRADA|TRAVESSA|ALAMEDA|REPUBLICA|RODOVIA)\b/i;
+    /\b(RUA|R\s|AVENIDA|AV\s?|ESTRADA|TRAVESSA|ALAMEDA|REPUBLICA|RODOVIA|TRAV\.?|AL\.?|ESTR\.?|ROD\.?)\b/i;
 
   let nome = '';
-  let endereco = '';
+  let enderecoBruto = '';
 
-  const inicioEndereco = texto.search(regexEndereco);
+  const inicioEndereco = limpo.search(regexEndereco);
 
   if (inicioEndereco !== -1) {
-    nome = texto.substring(0, inicioEndereco).trim();
-    endereco = texto.substring(inicioEndereco).trim();
+    nome = limpo.substring(0, inicioEndereco).trim();
+    enderecoBruto = limpo.substring(inicioEndereco).trim();
   } else {
-    const partes = texto.split(',');
-    nome = partes[0] || '';
-    endereco = partes.slice(1).join(',') || '';
+    // Fallback: se não achou logradouro, assume que a primeira vírgula separa nome do endereço
+    const partes = limpo.split(',');
+    nome = (partes[0] || '').trim();
+    enderecoBruto = partes.slice(1).join(',').trim();
   }
 
+  // ========== LIMPEZA EXTRA DO NOME ==========
+  // Remove traços, pontos e vírgulas no final do nome
   nome = nome.replace(/[,.-]+$/g, '').trim();
-  endereco = endereco.replace(/\s+/g, ' ').trim();
+  // Remove números isolados no final (ex: "JOAO 123" -> mantém "JOAO")
+  nome = nome.replace(/\s+\d+\s*$/g, '').trim();
+  // Remove palavras que parecem ser CEP ou cidade (ex: "SP", "SP-", "12345-678")
+  nome = nome.replace(/\s+(SP|RJ|MG|ES|DF|CE)\b\.?$/i, '').trim();
+  nome = nome.replace(/\b\d{5}-\d{3}\b/g, '').trim(); // CEP
 
-  console.log('NOME:', nome);
-  console.log('ENDEREÇO:', endereco);
+  // ========== EXTRAÇÃO APENAS DO NOME DA RUA ==========
+  // Queremos o logradouro + número (se existir), descartando bairro/cidade
+  let enderecoFinal = '';
+
+  // Tenta achar um número pequeno (até 5 dígitos) que é o número da casa
+  const regexNumeroCasa = /\b\d{1,5}\b/;
+  const matchNum = enderecoBruto.match(regexNumeroCasa);
+
+  if (matchNum) {
+    // Pega do início até o fim do número (incluindo uma possível vírgula antes)
+    const posNum = matchNum.index + matchNum[0].length;
+    enderecoFinal = enderecoBruto.substring(0, posNum).trim();
+    // Remove vírgula ou ponto final se sobraram
+    enderecoFinal = enderecoFinal.replace(/[,.]\s*$/, '').trim();
+  } else {
+    // Se não tem número, fica com a primeira parte antes de qualquer vírgula
+    const partesEnd = enderecoBruto.split(',');
+    enderecoFinal = partesEnd[0].trim();
+    // Se ainda parecer ter mais de uma palavra, verifica se a segunda é um número? já feito
+  }
+
+  // Remove CEPs que possam ter ficado grudados
+  enderecoFinal = enderecoFinal.replace(/\d{5}-\d{3}/g, '').trim();
+
+  // Garante que o endereço não termine com vírgula ou ponto
+  enderecoFinal = enderecoFinal.replace(/[,.\s]+$/g, '').trim();
+
+  // ========== RESULTADO FINAL ==========
+  console.log('NOME FINAL:', nome);
+  console.log('ENDEREÇO FINAL:', enderecoFinal);
 
   document.getElementById('nome').value = nome.toUpperCase();
-  document.getElementById('endereco').value = endereco.toUpperCase();
+  document.getElementById('endereco').value = enderecoFinal.toUpperCase();
   document.getElementById('resultado').style.display = 'block';
 }
 
 // ==============================
-// ADICIONAR À LISTA
+// ADICIONAR À LISTA (mantido igual)
 // ==============================
 document.getElementById('adicionarBtn').addEventListener('click', () => {
   const nome = document.getElementById('nome').value;
