@@ -1,12 +1,18 @@
 // SUBSTITUA PELA URL DO SEU WEB APP
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxIpvslimlUoi7IBcZWxdpufNyIaF6CwpzSQyA0dS16QYU2j6RF77FIflhGZv_3dTgF0w/exec';
+const WEBAPP_URL =
+  'https://script.google.com/macros/s/AKfycbxIpvslimlUoi7IBcZWxdpufNyIaF6CwpzSQyA0dS16QYU2j6RF77FIflhGZv_3dTgF0w/exec';
 
 // ==============================
 // ELEMENTOS
 // ==============================
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const video =
+  document.getElementById('video');
+
+const canvas =
+  document.getElementById('canvas');
+
+const ctx =
+  canvas.getContext('2d');
 
 const capturarBtn =
   document.getElementById('capturarBtn');
@@ -29,6 +35,7 @@ async function tentarIniciarCamera() {
       await navigator.mediaDevices.getUserMedia({
 
         video: {
+
           facingMode: {
             ideal: 'environment'
           },
@@ -58,7 +65,7 @@ async function tentarIniciarCamera() {
 
     await video.play();
 
-    // melhora contraste visual
+    // melhora visual
     video.style.filter =
       'contrast(140%) brightness(110%)';
 
@@ -130,6 +137,105 @@ document.getElementById('data').value =
   new Date().toLocaleDateString('pt-BR');
 
 // ==============================
+// FUNÇÃO OCR MELHORADA
+// ==============================
+async function fazerOCR(
+  sx,
+  sy,
+  sw,
+  sh
+) {
+
+  const tempCanvas =
+    document.createElement('canvas');
+
+  const tempCtx =
+    tempCanvas.getContext('2d');
+
+  // aumenta resolução
+  tempCanvas.width = sw * 2;
+  tempCanvas.height = sh * 2;
+
+  tempCtx.drawImage(
+    canvas,
+    sx,
+    sy,
+    sw,
+    sh,
+    0,
+    0,
+    tempCanvas.width,
+    tempCanvas.height
+  );
+
+  // ==========================
+  // CONTRASTE PESADO
+  // ==========================
+  const frame =
+    tempCtx.getImageData(
+      0,
+      0,
+      tempCanvas.width,
+      tempCanvas.height
+    );
+
+  const data = frame.data;
+
+  for (
+    let i = 0;
+    i < data.length;
+    i += 4
+  ) {
+
+    const media =
+      (
+        data[i] +
+        data[i + 1] +
+        data[i + 2]
+      ) / 3;
+
+    // preto e branco forte
+    const valor =
+      media > 140 ? 255 : 0;
+
+    data[i] = valor;
+    data[i + 1] = valor;
+    data[i + 2] = valor;
+  }
+
+  tempCtx.putImageData(
+    frame,
+    0,
+    0
+  );
+
+  const worker =
+    await Tesseract.createWorker('por');
+
+  await worker.setParameters({
+
+    tessedit_pageseg_mode:
+      Tesseract.PSM.SINGLE_BLOCK,
+
+    preserve_interword_spaces: '1',
+
+    tessedit_char_whitelist:
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÉÊÍÓÔÕÚÇàáâãéêíóôõúç0123456789- '
+  });
+
+  const {
+    data: { text }
+  } =
+    await worker.recognize(
+      tempCanvas.toDataURL('image/png')
+    );
+
+  await worker.terminate();
+
+  return text;
+}
+
+// ==============================
 // ESCANEAR CARTÃO
 // ==============================
 capturarBtn.addEventListener(
@@ -145,13 +251,12 @@ capturarBtn.addEventListener(
 
     try {
 
-      // pequena estabilização
       await new Promise(resolve =>
-        setTimeout(resolve, 400)
+        setTimeout(resolve, 500)
       );
 
       // ==========================
-      // CAPTURA
+      // CAPTURA ORIGINAL
       // ==========================
       canvas.width =
         video.videoWidth;
@@ -168,142 +273,79 @@ capturarBtn.addEventListener(
       );
 
       // ==========================
-      // MELHORA OCR
+      // OCR NOME
       // ==========================
-      const frame =
-        ctx.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height
+      const textoNome =
+        await fazerOCR(
+
+          canvas.width * 0.03,
+          canvas.height * 0.03,
+
+          canvas.width * 0.70,
+          canvas.height * 0.13
         );
 
-      const data = frame.data;
+      console.log(
+        'OCR NOME'
+      );
 
-      for (
-        let i = 0;
-        i < data.length;
-        i += 4
-      ) {
-
-        const media =
-          (
-            data[i] +
-            data[i + 1] +
-            data[i + 2]
-          ) / 3;
-
-        // CONTRASTE
-        const valor =
-          media > 155 ? 255 : 0;
-
-        data[i] = valor;
-        data[i + 1] = valor;
-        data[i + 2] = valor;
-      }
-
-      ctx.putImageData(frame, 0, 0);
-
-      const imageData =
-        canvas.toDataURL('image/png');
+      console.log(
+        textoNome
+      );
 
       // ==========================
-      // OCR
+      // OCR ENDEREÇO
       // ==========================
-      const worker =
-        await Tesseract.createWorker('por');
+      const textoEndereco =
+        await fazerOCR(
 
-      await worker.setParameters({
+          canvas.width * 0.03,
+          canvas.height * 0.15,
 
-        tessedit_pageseg_mode:
-          Tesseract.PSM.AUTO,
-
-        tessedit_char_whitelist:
-          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÉÊÍÓÔÕÚÇàáâãéêíóôõúç0123456789-.,/: '
-
-      });
-
-      const {
-        data: { text }
-      } =
-        await worker.recognize(
-          imageData
+          canvas.width * 0.70,
+          canvas.height * 0.20
         );
 
-      await worker.terminate();
+      console.log(
+        'OCR ENDEREÇO'
+      );
 
-      console.log('OCR BRUTO');
-      console.log(text);
-
-      // ==========================
-      // LIMPEZA TEXTO
-      // ==========================
-      let texto = text
-        .replace(/\|/g, ' ')
-        .replace(/\n+/g, '\n')
-        .replace(/[ ]+/g, ' ')
-        .trim();
-
-      const linhas =
-        texto
-          .split('\n')
-          .map(l => l.trim())
-          .filter(
-            l => l.length > 3
-          );
-
-      console.log('LINHAS OCR');
-      console.log(linhas);
+      console.log(
+        textoEndereco
+      );
 
       // ==========================
-      // ENCONTRAR NOME
+      // LIMPAR NOME
       // ==========================
-      let nome = '';
+      let nome =
+        textoNome
 
-      for (const linha of linhas) {
+          .replace(/\n/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-        // ignora lixo
-        if (
-          linha.match(
-            /CEP|STATUS|DATA|VISITA|IDENTIDADE/i
-          )
-        ) continue;
+      const matchNome =
+        nome.match(
+          /\b[A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,}){1,6}\b/g
+        );
 
-        // ignora linhas com muitos números
-        const qtdNumeros =
-          (
-            linha.match(/\d/g)
-            || []
-          ).length;
+      if (matchNome) {
 
-        if (qtdNumeros > 2)
-          continue;
+        nome =
+          matchNome.sort(
+            (a, b) =>
+              b.length - a.length
+          )[0];
 
-        // provável nome
-        if (
-          linha.length > 10 &&
-          linha.length < 60 &&
-          linha.match(
-            /[A-ZÀ-Ú]{2,}/
-          )
-        ) {
+      } else {
 
-          nome = linha;
-
-          break;
-        }
+        nome = '';
       }
 
-      // limpa lixo OCR
       nome = nome
 
         .replace(
-          /\b(RU|SS|AA|OO|IO|LO)\b/g,
-          ''
-        )
-
-        .replace(
-          /[^A-ZÀ-Úa-zà-ú\s]/g,
+          /\b(NNE|OO|IO|RU|SS|AA)\b/g,
           ''
         )
 
@@ -315,31 +357,32 @@ capturarBtn.addEventListener(
         .trim();
 
       // ==========================
-      // ENCONTRAR ENDEREÇO
+      // LIMPAR ENDEREÇO
       // ==========================
-      let endereco = '';
+      let endereco =
+        textoEndereco
 
-      for (const linha of linhas) {
+          .replace(/\n/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-        if (
-          linha.match(
-            /\b(RUA|R\s|AV|AVENIDA|ESTRADA|TRAVESSA)\b/i
-          )
-        ) {
+      const matchEndereco =
+        endereco.match(
+          /(RUA|R\s|AV|AVENIDA|ESTRADA|TRAVESSA)\s+[A-ZÀ-Ú0-9\s]+\d+/i
+        );
 
-          endereco = linha;
+      if (matchEndereco) {
 
-          break;
-        }
+        endereco =
+          matchEndereco[0];
+
+      } else {
+
+        endereco = '';
       }
 
       endereco = endereco
-
-        .replace(
-          /\s+/g,
-          ' '
-        )
-
+        .replace(/\s+/g, ' ')
         .trim();
 
       // ==========================
@@ -388,7 +431,7 @@ capturarBtn.addEventListener(
 );
 
 // ==============================
-// ADICIONAR
+// ADICIONAR À LISTA
 // ==============================
 document.getElementById(
   'adicionarBtn'
@@ -455,7 +498,8 @@ document.getElementById(
 
     document.getElementById(
       'resultado'
-    ).style.display = 'none';
+    ).style.display =
+      'none';
 
     document.getElementById(
       'nome'
@@ -478,7 +522,8 @@ document.getElementById(
 
     document.getElementById(
       'resultado'
-    ).style.display = 'none';
+    ).style.display =
+      'none';
 
     document.getElementById(
       'nome'
