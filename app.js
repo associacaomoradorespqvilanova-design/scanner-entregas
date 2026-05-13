@@ -5,7 +5,7 @@ const WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
 const GEMINI_API_KEY =
-  'SUA_CHAVE_AQUI';
+  'AIzaSyDC0P69uLJ5LzLVsFDCiHfQ8S-3Lywrxqw';
 
 // ==============================
 // ELEMENTOS
