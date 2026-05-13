@@ -5,7 +5,7 @@ const WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
 const GEMINI_API_KEY =
-  'SUA_API_KEY_AQUI';
+  'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
 
 const GEMINI_MODEL =
   'gemini-1.5-flash-latest';
