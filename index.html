@@ -9,6 +9,7 @@
 <body>
   <div class="container">
     <h1>📦 Scanner de Entregas</h1>
+    <p style="text-align:center; font-size:14px; color:#555;">Aponte a câmera para o nome e endereço do cartão</p>
     
     <div class="camera-area">
       <video id="video" autoplay playsinline></video>
@@ -20,6 +21,7 @@
     <!-- Resultado do scan atual -->
     <div id="resultado" class="resultado" style="display: none;">
       <h3>📋 Cartão escaneado</h3>
+      <div id="mensagemOCR" style="display:none; margin-bottom:10px; color:#e65100;"></div>
       <div class="campo">
         <label>Nome (ENTREGUE Á):</label>
         <input type="text" id="nome" readonly>
@@ -28,14 +30,8 @@
         <label>Endereço:</label>
         <input type="text" id="endereco" readonly>
       </div>
-      <!-- Campo oculto para debug, se quiser ver o texto bruto -->
-      <div class="campo" id="debugCampo" style="display:none;">
-        <label>Texto bruto (OCR):</label>
-        <input type="text" id="textoBruto" readonly>
-      </div>
       <div class="botoes">
         <button id="adicionarBtn" class="btn">➕ Adicionar à lista e escanear próximo</button>
-        <button id="corrigirBtn" class="btn secundario">✏️ Corrigir manualmente</button>
         <button id="escanearOutroBtn" class="btn secundario">❌ Descartar e escanear outro</button>
       </div>
     </div>
@@ -50,7 +46,7 @@
       </div>
     </div>
 
-    <!-- Campos fixos (usados em todos os cartões) -->
+    <!-- Campos fixos -->
     <div class="campos-fixos">
       <h3>⚙️ Dados comuns a todos</h3>
       <div class="campo">
