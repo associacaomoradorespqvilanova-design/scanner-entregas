@@ -78,7 +78,6 @@ function preProcessarImagem(sourceCanvas) {
   const imageData = tCtx.getImageData(0, 0, width, height);
   const data = imageData.data;
 
-  // Binarização com threshold ajustável (150 parece funcionar bem para cartões)
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -108,11 +107,28 @@ async function realizarOCR(imagemDataURL) {
 }
 
 // ==============================
-// EXTRAIR NOME E ENDEREÇO
+// EXTRAIR NOME E ENDEREÇO (VERSÃO INTELIGENTE)
 // ==============================
 function extrairDados(texto) {
-  let limpo = texto.replace(/\n/g, ' ').replace(/\|/g, ' ').replace(/\s+/g, ' ').trim();
+  // 1. Limpeza inicial
+  let limpo = texto
+    .replace(/\n/g, ' ')
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
+  // Palavras proibidas (ignorar completamente)
+  const palavrasProibidas = [
+    'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
+    'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
+    'CIDADE', 'ESTADO', 'BAIRRO'
+  ];
+  palavrasProibidas.forEach(p => {
+    const regex = new RegExp('\\b' + p + '\\b', 'gi');
+    limpo = limpo.replace(regex, '');
+  });
+
+  // Correções de erros comuns do OCR
   const correcoes = {
     'DNU': 'RUA', 'DNL': 'RUA', 'SUVU': 'SOUZA', 'SOUZ': 'SOUZA',
     'PRC': '', 'JUREMA': '', 'TONE': '', 'OO': '', 'IO': '', 'NNE': '', 'CS': '',
@@ -123,42 +139,99 @@ function extrairDados(texto) {
     limpo = limpo.replace(regex, correto);
   }
 
-  const palavras = limpo.split(' ');
-  const abreviacoes = ['R', 'AV', 'RUA', 'AVENIDA', 'TRAVESSA', 'ESTRADA', 'ALAMEDA', 'RODOVIA'];
-  const filtradas = palavras.filter(p => p.length > 2 || abreviacoes.includes(p.toUpperCase()));
-  limpo = filtradas.join(' ');
+  // Remove palavras muito curtas (≤2), exceto abreviações de logradouro
+  const abreviacoesValidas = ['R', 'AV', 'TV', 'TRV', 'BC', 'AL', 'ESTR', 'ROD'];
+  let palavras = limpo.split(' ').filter(p => {
+    if (p.length > 2) return true;
+    if (abreviacoesValidas.includes(p.toUpperCase())) return true;
+    return false;
+  });
+  limpo = palavras.join(' ');
 
-  const metade = Math.floor(filtradas.length / 2);
-  const primeira = filtradas.slice(0, metade).join(' ');
-  const segunda = filtradas.slice(metade).join(' ');
-  if (primeira === segunda && primeira.length > 5) limpo = primeira;
+  // Remove duplicações (se a primeira metade = segunda metade)
+  const metade = Math.floor(palavras.length / 2);
+  const primeira = palavras.slice(0, metade).join(' ');
+  const segunda = palavras.slice(metade).join(' ');
+  if (primeira === segunda && primeira.length > 5) {
+    limpo = primeira;
+  }
 
   console.log('Texto limpo:', limpo);
 
-  const regexEnd = /\b(R\s|RUA\s|AV\s|AVENIDA\s|ESTRADA\s|TRAVESSA\s|ALAMEDA\s|REPUBLICA\s|RODOVIA\s)/i;
-  const match = limpo.match(regexEnd);
+  // 2. Expansão de abreviações apenas para detecção
+  const mapaAbreviacoes = {
+    'R': 'RUA',
+    'AV': 'AVENIDA',
+    'TV': 'TRAVESSA',
+    'TRV': 'TRAVESSA',
+    'BC': 'BECO',
+    'AL': 'ALAMEDA',
+    'ESTR': 'ESTRADA',
+    'ROD': 'RODOVIA'
+  };
+
+  let textoExpandido = limpo;
+  const chaves = Object.keys(mapaAbreviacoes).sort((a, b) => b.length - a.length);
+  chaves.forEach(abrev => {
+    const regex = new RegExp('\\b' + abrev + '\\b', 'gi');
+    textoExpandido = textoExpandido.replace(regex, mapaAbreviacoes[abrev]);
+  });
+
+  console.log('Expandido:', textoExpandido);
+
+  // 3. Localizar início do endereço (usando texto expandido)
+  const regexEnd = /\b(RUA|AVENIDA|TRAVESSA|BECO|ALAMEDA|ESTRADA|RODOVIA|REPUBLICA)\s/i;
+  const match = textoExpandido.match(regexEnd);
+  
   let nome = '', endereco = '';
 
   if (match) {
-    nome = limpo.substring(0, match.index).trim();
-    endereco = limpo.substring(match.index).trim();
+    const idx = match.index;
+    nome = limpo.substring(0, idx).trim();       // texto original (abreviado)
+    endereco = limpo.substring(idx).trim();       // original
   } else {
+    // Fallback: divide na primeira vírgula
     const partes = limpo.split(',');
     nome = partes[0] || '';
     endereco = partes.slice(1).join(',') || '';
   }
 
-  nome = nome.replace(/\d+/g, '').replace(/[,.\\-]+$/g, '').trim();
-  const numMatch = endereco.match(/\b\d{1,5}\b/);
-  if (numMatch) {
-    const posNum = numMatch.index + numMatch[0].length;
-    endereco = endereco.substring(0, posNum).trim();
+  // 4. Limpar nome (apenas letras, sem números, sem pontuações)
+  nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  nome = nome.split(' ').filter(p => p.length >= 2).join(' ');
+
+  if (!nome) {
+    // Tenta extrair do original uma sequência de palavras que pareçam nome próprio
+    const possiveisNomes = limpo.split(' ').filter(p => /^[A-ZÀ-Ú]+$/i.test(p) && p.length > 2);
+    nome = possiveisNomes.slice(0, 3).join(' ');
+  }
+
+  // 5. Limpar endereço (até o número da casa)
+  const regexNumero = /\b\d{1,5}\b/;
+  const matchNum = endereco.match(regexNumero);
+  if (matchNum) {
+    const posFim = matchNum.index + matchNum[0].length;
+    endereco = endereco.substring(0, posFim).trim();
   } else {
+    // Se não tem número, pega até a primeira vírgula
     endereco = endereco.split(',')[0].trim();
   }
-  endereco = endereco.replace(/\b\d{5}-\d{3}\b/g, '').trim();
 
-  return { nome: nome.toUpperCase(), endereco: endereco.toUpperCase() };
+  // Remove CEPs e espaços extras
+  endereco = endereco.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
+
+  if (!endereco) {
+    // Última tentativa: busca no texto expandido o padrão "RUA ... [número]"
+    const matchFallback = textoExpandido.match(/\b(RUA|AVENIDA|TRAVESSA|BECO|ALAMEDA|ESTRADA|RODOVIA)\s.+?(?=\s+\d{1,5}|$)/i);
+    if (matchFallback) {
+      endereco = matchFallback[0].trim();
+    }
+  }
+
+  return {
+    nome: nome.toUpperCase(),
+    endereco: endereco.toUpperCase()
+  };
 }
 
 // ==============================
@@ -181,7 +254,6 @@ capturarBtn.addEventListener('click', async () => {
 
     const { nome, endereco } = extrairDados(textoBruto);
 
-    // Exibir resultado (sempre mostra os campos)
     const nomeInput = document.getElementById('nome');
     const enderecoInput = document.getElementById('endereco');
     const msgOCR = document.getElementById('mensagemOCR');
@@ -191,11 +263,11 @@ capturarBtn.addEventListener('click', async () => {
     document.getElementById('resultado').style.display = 'block';
 
     if (!nome && !endereco) {
-      // OCR falhou: libera edição imediatamente
+      // OCR falhou: libera edição manual imediata
       nomeInput.readOnly = false;
       enderecoInput.readOnly = false;
       msgOCR.style.display = 'block';
-      msgOCR.textContent = '⚠️ Texto não reconhecido. Digite o nome e o endereço manualmente.';
+      msgOCR.textContent = '⚠️ Texto não reconhecido. Digite os dados manualmente.';
       nomeInput.focus();
     } else {
       // OCR funcionou: mantém readonly
@@ -213,7 +285,7 @@ capturarBtn.addEventListener('click', async () => {
 });
 
 // ==============================
-// ADICIONAR À LISTA (já trata campos editáveis)
+// ADICIONAR À LISTA
 // ==============================
 document.getElementById('adicionarBtn').addEventListener('click', () => {
   const nome = document.getElementById('nome').value.trim();
