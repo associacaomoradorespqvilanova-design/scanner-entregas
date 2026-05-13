@@ -1,10 +1,9 @@
-// SUBSTITUA PELA URL DO SEU WEB APP
-const WEBAPP_URL =
-  'https://script.google.com/macros/s/AKfycbweKuxpOt5aXWPFDcbjUj0uOgX7ubqi5H6t8_VLAqcPeBBZB41FCZb2rgNYKW61RYf77g/exec';
+// ==============================
+// CONFIGURAÇÕES
+// ==============================
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec'; // apenas o endpoint que grava na planilha
+const GEMINI_API_KEY = 'AIzaSyBYPkxOdx9ZBQoKk4ZPxz29usIGUOeAgZM'; // coloque sua chave do Gemini
 
-// ==============================
-// ELEMENTOS
-// ==============================
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -27,19 +26,14 @@ async function tentarIniciarCamera() {
       },
       audio: false
     });
-
     video.srcObject = stream;
-
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       video.onloadedmetadata = () => resolve();
       if (video.readyState >= 2) resolve();
     });
-
     await video.play();
     video.style.filter = 'contrast(140%) brightness(110%)';
-
     definirCameraPronta(true);
-    console.log('Câmera iniciada');
   } catch (err) {
     console.error(err);
     definirCameraPronta(false);
@@ -69,46 +63,67 @@ async function iniciarCameraManual() {
 }
 
 iniciarCameraBtn.addEventListener('click', iniciarCameraManual);
-
-// ==============================
-// DATA AUTOMÁTICA
-// ==============================
 document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
 
 // ==============================
-// ESCANEAR (agora usando IA)
+// CHAMADA DIRETA À API GEMINI
+// ==============================
+async function extrairComGemini(imagemBase64) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+  const payload = {
+    contents: [{
+      parts: [
+        {
+          text: "Extraia da imagem do cartão apenas o nome completo da pessoa e o endereço (somente nome da rua e número, sem bairro, cidade ou CEP). Retorne APENAS um JSON válido com as chaves 'nome' e 'endereco', sem texto adicional. Exemplo: {\"nome\": \"JOAO SILVA\", \"endereco\": \"RUA DAS FLORES 123\"}. Se não conseguir ler, retorne {\"nome\": \"\", \"endereco\": \"\"}."
+        },
+        {
+          inline_data: {
+            mime_type: "image/jpeg",
+            data: imagemBase64
+          }
+        }
+      ]
+    }]
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json();
+  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"nome":"","endereco":""}';
+  const jsonLimpo = texto.replace(/```json|```/g, '').trim();
+  return JSON.parse(jsonLimpo);
+}
+
+// ==============================
+// ESCANEAR CARTÃO (usa Gemini direto)
 // ==============================
 capturarBtn.addEventListener('click', async () => {
   if (!cameraPronta) return;
 
   capturarBtn.disabled = true;
-  capturarBtn.textContent = '⏳ Analisando com IA...';
+  capturarBtn.textContent = '⏳ Consultando IA...';
 
   try {
-    // Pequena pausa para estabilizar foco
     await new Promise(resolve => setTimeout(resolve, 300));
 
-    // Captura o frame
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Converte para JPEG base64 (sem o prefixo "data:image/jpeg;base64,")
     const imagemBase64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
 
-    // Envia para o Google Apps Script (função processarImagem)
-    const response = await fetch(WEBAPP_URL + '?action=processarImagem', {
-      method: 'POST',
-      body: JSON.stringify({ imagem: imagemBase64 }),
-      headers: { 'Content-Type': 'application/json' }
-    });
+    // IA direto no navegador
+    const resultado = await extrairComGemini(imagemBase64);
 
-    const resultado = await response.json();
+    console.log('Resultado IA:', resultado);
 
-    console.log('IA retornou:', resultado);
-
-    document.getElementById('nome').value = resultado.nome?.toUpperCase() || '';
-    document.getElementById('endereco').value = resultado.endereco?.toUpperCase() || '';
+    document.getElementById('nome').value = (resultado.nome || '').toUpperCase();
+    document.getElementById('endereco').value = (resultado.endereco || '').toUpperCase();
     document.getElementById('resultado').style.display = 'block';
 
     if (!resultado.nome && !resultado.endereco) {
@@ -116,7 +131,6 @@ capturarBtn.addEventListener('click', async () => {
     } else {
       mostrarStatus('✅ Leitura concluída com IA!', 'sucesso');
     }
-
   } catch (err) {
     console.error(err);
     alert('Erro ao consultar IA: ' + err.message);
@@ -127,16 +141,12 @@ capturarBtn.addEventListener('click', async () => {
 });
 
 // ==============================
-// ADICIONAR À LISTA (mantido)
+// FUNÇÕES DE LISTA E ENVIO (mantidas iguais)
 // ==============================
 document.getElementById('adicionarBtn').addEventListener('click', () => {
   const nome = document.getElementById('nome').value;
   const endereco = document.getElementById('endereco').value;
-
-  if (!nome || !endereco) {
-    alert('Nome e endereço obrigatórios');
-    return;
-  }
+  if (!nome || !endereco) { alert('Nome e endereço obrigatórios'); return; }
 
   listaEntregas.push({
     nome,
@@ -150,30 +160,19 @@ document.getElementById('adicionarBtn').addEventListener('click', () => {
   });
 
   atualizarListaVisual();
-
   document.getElementById('resultado').style.display = 'none';
   document.getElementById('nome').value = '';
   document.getElementById('endereco').value = '';
 });
 
-// ==============================
-// DESCARTAR E ESCANEAR OUTRO
-// ==============================
 document.getElementById('escanearOutroBtn').addEventListener('click', () => {
   document.getElementById('resultado').style.display = 'none';
   document.getElementById('nome').value = '';
   document.getElementById('endereco').value = '';
 });
 
-// ==============================
-// ENVIAR TUDO (mantido)
-// ==============================
 document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
-  if (listaEntregas.length === 0) {
-    alert('Nenhum cartão.');
-    return;
-  }
-
+  if (listaEntregas.length === 0) { alert('Nenhum cartão.'); return; }
   mostrarStatus('Enviando...', '');
 
   try {
@@ -182,7 +181,6 @@ document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
       body: JSON.stringify(listaEntregas),
       headers: { 'Content-Type': 'application/json' }
     });
-
     const resultado = await resposta.json();
 
     if (resultado.success) {
@@ -198,35 +196,21 @@ document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
   }
 });
 
-// ==============================
-// LIMPAR LISTA
-// ==============================
 document.getElementById('limparListaBtn').addEventListener('click', () => {
-  if (listaEntregas.length === 0) {
-    alert('Lista vazia.');
-    return;
-  }
+  if (listaEntregas.length === 0) { alert('Lista vazia.'); return; }
   if (confirm('Apagar todos os cartões?')) {
     listaEntregas = [];
     atualizarListaVisual();
   }
 });
 
-// ==============================
-// LISTA VISUAL
-// ==============================
 function atualizarListaVisual() {
   const listaUl = document.getElementById('itensLista');
   const contador = document.getElementById('contadorLista');
   const div = document.getElementById('listaAcumulada');
 
   contador.textContent = listaEntregas.length;
-
-  if (listaEntregas.length === 0) {
-    div.style.display = 'none';
-    return;
-  }
-
+  if (listaEntregas.length === 0) { div.style.display = 'none'; return; }
   div.style.display = 'block';
   listaUl.innerHTML = '';
 
@@ -234,9 +218,7 @@ function atualizarListaVisual() {
     const li = document.createElement('li');
     li.innerHTML = `
       <span style="flex:1;">
-        <strong>${item.nome}</strong>
-        <br>
-        ${item.endereco}
+        <strong>${item.nome}</strong><br>${item.endereco}
       </span>
       <button onclick="removerItem(${index})">❌</button>
     `;
@@ -244,29 +226,17 @@ function atualizarListaVisual() {
   });
 }
 
-// ==============================
-// REMOVER ITEM
-// ==============================
 function removerItem(indice) {
   listaEntregas.splice(indice, 1);
   atualizarListaVisual();
 }
 
-// ==============================
-// STATUS
-// ==============================
 function mostrarStatus(msg, classe) {
   const status = document.getElementById('status');
   status.textContent = msg;
   status.className = 'status ' + classe;
-
-  setTimeout(() => {
-    status.textContent = '';
-    status.className = 'status';
-  }, 4000);
+  setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
 }
 
-// ==============================
-// INICIAR TUDO AO CARREGAR
-// ==============================
+// Iniciar câmera ao carregar
 tentarIniciarCamera();
