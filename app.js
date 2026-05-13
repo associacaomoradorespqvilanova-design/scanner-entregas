@@ -1,9 +1,12 @@
-// URL DO SEU WEB APP – SUBSTITUA PELA URL COPIADA NA ETAPA 1
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwgGd5JeE9P8TcK5DSKqDiyIA9k9O_q57BMXwG4x3deX7JhH7XN7dSrm6p7HQ35hebn1A/exec';
+// SUBSTITUA PELA URL DO SEU WEB APP ATUALIZADO
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxIpvslimlUoi7IBcZWxdpufNyIaF6CwpzSQyA0dS16QYU2j6RF77FIflhGZv_3dTgF0w/exec';
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
+
+// Array que armazena todos os cartões escaneados
+let listaEntregas = [];
 
 // Iniciar câmera traseira
 async function startCamera() {
@@ -21,6 +24,8 @@ startCamera();
 
 // Configurar data atual
 document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
+
+// ================== EVENTOS ==================
 
 // Escanear cartão
 document.getElementById('capturarBtn').addEventListener('click', async () => {
@@ -45,7 +50,6 @@ document.getElementById('capturarBtn').addEventListener('click', async () => {
     const { data: { text } } = await worker.recognize(imageData);
     await worker.terminate();
     
-    // Processamento inteligente do texto
     processarTexto(text);
   } catch (err) {
     alert('Erro no OCR: ' + err.message);
@@ -55,115 +59,63 @@ document.getElementById('capturarBtn').addEventListener('click', async () => {
   document.getElementById('capturarBtn').textContent = '📷 Escanear Cartão';
 });
 
-/**
- * Identifica nome e apenas o nome da rua (logradouro) no texto do cartão.
- * Regras:
- *  - Tudo antes da primeira linha que contém um tipo de logradouro (RUA, AV. etc.) é considerado NOME.
- *  - O endereço será a linha do logradouro + (se existir) a linha seguinte que contenha número.
- *  - Apenas o nome da rua e o número (se houver) são mantidos – bairro, cidade, CEP são descartados.
- */
-function processarTexto(texto) {
-  // Limpeza básica
-  const linhasOriginais = texto
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 1); // remove linhas vazias ou com 1 caractere (ruído)
-  
-  // Palavras‑chave que indicam início de endereço (maiúsculas, sem acentos para facilitar)
-  const prefixosRua = [
-    'RUA', 'R ', 'AVENIDA', 'AV ', 'AV.', 'TRAVESSA', 'TRAV.', 'TRAV',
-    'PRACA', 'PRAÇA', 'ALAMEDA', 'AL ', 'ESTRADA', 'ESTR.', 'RODOVIA', 'ROD.',
-    'BECO', 'BEC ', 'LARGO', 'LGO', 'VIELA', 'VLA'
-  ];
-  
-  // Expressão regular para detectar um número (parte do endereço)
-  const regexNumero = /,\s*\d+|\s+\d+\s*$|^\d+\s/; // vírgula seguida de número, ou número no final, ou número no início
-
-  let indiceInicioEndereco = -1;
-  
-  // Procura a primeira linha que começa com um dos prefixos de logradouro
-  for (let i = 0; i < linhasOriginais.length; i++) {
-    const linhaUpper = linhasOriginais[i].toUpperCase().replace(/[^A-Z\s]/g, '');
-    if (prefixosRua.some(prefixo => linhaUpper.startsWith(prefixo + ' ') || linhaUpper === prefixo)) {
-      indiceInicioEndereco = i;
-      break;
-    }
-  }
-  
-  // Se não encontrou prefixo de rua, usa heurística simples (primeira linha = nome, restante = endereço)
-  if (indiceInicioEndereco === -1) {
-    if (linhasOriginais.length >= 2) {
-      document.getElementById('nome').value = linhasOriginais[0].toUpperCase();
-      // Junta todo o resto como endereço, mas vamos tentar limitar
-      const resto = linhasOriginais.slice(1).join(', ').toUpperCase();
-      document.getElementById('endereco').value = resto;
-    } else if (linhasOriginais.length === 1) {
-      document.getElementById('nome').value = linhasOriginais[0].toUpperCase();
-      document.getElementById('endereco').value = '';
-    }
-    document.getElementById('resultado').style.display = 'block';
+// Adicionar à lista e escanear próximo
+document.getElementById('adicionarBtn').addEventListener('click', () => {
+  const nome = document.getElementById('nome').value;
+  const endereco = document.getElementById('endereco').value;
+  if (!nome || !endereco) {
+    alert('Nome e endereço não podem estar vazios!');
     return;
   }
   
-  // Extrai nome: todas as linhas antes do endereço
-  const linhasNome = linhasOriginais.slice(0, indiceInicioEndereco);
-  const nome = linhasNome.join(' ').toUpperCase().trim();
-  
-  // Extrai endereço: linha do logradouro + próxima linha se contiver número
-  let endereco = linhasOriginais[indiceInicioEndereco].trim();
-  
-  // Verifica se a linha seguinte (se existir) parece conter um número (ex: ", 123" ou "123")
-  if (indiceInicioEndereco + 1 < linhasOriginais.length) {
-    const linhaSeguinte = linhasOriginais[indiceInicioEndereco + 1].trim();
-    if (regexNumero.test(linhaSeguinte) || /^\d+$/.test(linhaSeguinte)) {
-      endereco += ', ' + linhaSeguinte;
-    }
-    // Se a linha seguinte não parece número, ignoramos (deve ser bairro/cidade)
-  }
-  
-  // Converte para maiúsculas
-  endereco = endereco.toUpperCase();
-  
-  // Remove possíveis sufixos indesejados (bairro, cidade) se vierem na mesma linha? 
-  // Por simplicidade, mantemos como está, mas já cortamos linhas extras.
-  
-  document.getElementById('nome').value = nome;
-  document.getElementById('endereco').value = endereco;
-  
-  document.getElementById('resultado').style.display = 'block';
-}
-
-// Enviar para a planilha (mantido igual)
-document.getElementById('enviarBtn').addEventListener('click', async () => {
-  const dados = {
-    nome: document.getElementById('nome').value,
-    endereco: document.getElementById('endereco').value,
+  // Adiciona ao array com os dados comuns atuais
+  listaEntregas.push({
+    nome: nome,
+    endereco: endereco,
     quantidade: document.getElementById('quantidade').value,
     tipo: document.getElementById('tipo').value,
     numero: document.getElementById('numero').value,
     obs: document.getElementById('obs').value,
     telefone: document.getElementById('telefone').value,
     data: document.getElementById('data').value
-  };
+  });
   
-  if (!dados.nome || !dados.endereco) {
-    alert('Nome e endereço são obrigatórios!');
+  // Limpa campos de nome/endereço e esconde resultado
+  document.getElementById('nome').value = '';
+  document.getElementById('endereco').value = '';
+  document.getElementById('resultado').style.display = 'none';
+  
+  atualizarListaVisual();
+});
+
+// Descartar e escanear outro (não adiciona à lista)
+document.getElementById('escanearOutroBtn').addEventListener('click', () => {
+  document.getElementById('resultado').style.display = 'none';
+  document.getElementById('nome').value = '';
+  document.getElementById('endereco').value = '';
+});
+
+// Enviar tudo
+document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
+  if (listaEntregas.length === 0) {
+    alert('Nenhum cartão na lista!');
     return;
   }
   
-  mostrarStatus('Enviando...', '');
+  mostrarStatus('Enviando ' + listaEntregas.length + ' cartão(s)...', '');
   
   try {
     const resposta = await fetch(WEBAPP_URL, {
       method: 'POST',
-      body: JSON.stringify(dados),
+      body: JSON.stringify(listaEntregas),
       headers: { 'Content-Type': 'application/json' }
     });
     const resultado = await resposta.json();
     
     if (resultado.success) {
-      mostrarStatus('✅ Enviado com sucesso!', 'sucesso');
-      limparCampos();
+      mostrarStatus('✅ ' + resultado.message, 'sucesso');
+      listaEntregas = [];        // limpa a lista após envio com sucesso
+      atualizarListaVisual();
     } else {
       mostrarStatus('❌ Erro: ' + resultado.message, 'erro');
     }
@@ -172,15 +124,95 @@ document.getElementById('enviarBtn').addEventListener('click', async () => {
   }
 });
 
-// Escanear outro
-document.getElementById('escanearOutroBtn').addEventListener('click', () => {
-  limparCampos();
-  document.getElementById('resultado').style.display = 'none';
+// Limpar lista manualmente
+document.getElementById('limparListaBtn').addEventListener('click', () => {
+  if (confirm('Deseja apagar todos os cartões da lista?')) {
+    listaEntregas = [];
+    atualizarListaVisual();
+  }
 });
 
-function limparCampos() {
-  document.getElementById('nome').value = '';
-  document.getElementById('endereco').value = '';
+// ================== FUNÇÕES ==================
+
+function processarTexto(texto) {
+  const linhasOriginais = texto
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 1);
+  
+  const prefixosRua = [
+    'RUA', 'R ', 'AVENIDA', 'AV ', 'AV.', 'TRAVESSA', 'TRAV.', 'TRAV',
+    'PRACA', 'PRAÇA', 'ALAMEDA', 'AL ', 'ESTRADA', 'ESTR.', 'RODOVIA', 'ROD.',
+    'BECO', 'BEC ', 'LARGO', 'LGO', 'VIELA', 'VLA'
+  ];
+  
+  const regexNumero = /,\s*\d+|\s+\d+\s*$|^\d+\s/;
+  let indiceInicioEndereco = -1;
+  
+  for (let i = 0; i < linhasOriginais.length; i++) {
+    const linhaUpper = linhasOriginais[i].toUpperCase().replace(/[^A-Z\s]/g, '');
+    if (prefixosRua.some(prefixo => linhaUpper.startsWith(prefixo + ' ') || linhaUpper === prefixo)) {
+      indiceInicioEndereco = i;
+      break;
+    }
+  }
+  
+  let nome = '', endereco = '';
+  
+  if (indiceInicioEndereco === -1) {
+    // Fallback simples
+    if (linhasOriginais.length >= 2) {
+      nome = linhasOriginais[0].toUpperCase();
+      endereco = linhasOriginais.slice(1).join(', ').toUpperCase();
+    } else if (linhasOriginais.length === 1) {
+      nome = linhasOriginais[0].toUpperCase();
+    }
+  } else {
+    const linhasNome = linhasOriginais.slice(0, indiceInicioEndereco);
+    nome = linhasNome.join(' ').toUpperCase().trim();
+    endereco = linhasOriginais[indiceInicioEndereco].trim().toUpperCase();
+    
+    if (indiceInicioEndereco + 1 < linhasOriginais.length) {
+      const linhaSeguinte = linhasOriginais[indiceInicioEndereco + 1].trim();
+      if (regexNumero.test(linhaSeguinte) || /^\d+$/.test(linhaSeguinte)) {
+        endereco += ', ' + linhaSeguinte;
+      }
+    }
+  }
+  
+  document.getElementById('nome').value = nome;
+  document.getElementById('endereco').value = endereco;
+  document.getElementById('resultado').style.display = 'block';
+}
+
+function atualizarListaVisual() {
+  const listaUl = document.getElementById('itensLista');
+  const contadorSpan = document.getElementById('contadorLista');
+  const divLista = document.getElementById('listaAcumulada');
+  
+  contadorSpan.textContent = listaEntregas.length;
+  
+  if (listaEntregas.length === 0) {
+    divLista.style.display = 'none';
+    return;
+  }
+  
+  divLista.style.display = 'block';
+  listaUl.innerHTML = '';
+  
+  listaEntregas.forEach((item, index) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span style="flex:1; font-size:14px;"><strong>${item.nome}</strong><br>${item.endereco}</span>
+      <button onclick="removerItem(${index})">❌</button>
+    `;
+    listaUl.appendChild(li);
+  });
+}
+
+function removerItem(indice) {
+  listaEntregas.splice(indice, 1);
+  atualizarListaVisual();
 }
 
 function mostrarStatus(msg, classe) {
