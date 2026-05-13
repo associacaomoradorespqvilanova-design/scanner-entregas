@@ -16,7 +16,9 @@
       <canvas id="canvas" style="display:none;"></canvas>
     </div>
 
+    <!-- Resultado do scan atual -->
     <div id="resultado" class="resultado" style="display:none;">
+      <h3>📋 Cartão escaneado</h3>
       <div class="campo">
         <label>Nome (ENTREGUE Á):</label>
         <input type="text" id="nome" readonly>
@@ -25,8 +27,25 @@
         <label>Endereço:</label>
         <input type="text" id="endereco" readonly>
       </div>
-      
-      <!-- Campos fixos / manuais -->
+      <div class="botoes">
+        <button id="adicionarBtn" class="btn">➕ Adicionar à lista e escanear próximo</button>
+        <button id="escanearOutroBtn" class="btn secundario">❌ Descartar e escanear outro</button>
+      </div>
+    </div>
+
+    <!-- Lista de cartões acumulados -->
+    <div id="listaAcumulada" style="display:none;">
+      <h3>📌 Cartões na lista (<span id="contadorLista">0</span>)</h3>
+      <ul id="itensLista"></ul>
+      <div class="botoes">
+        <button id="enviarTudoBtn" class="btn enviar">✅ Enviar Tudo para Planilha</button>
+        <button id="limparListaBtn" class="btn secundario">🗑️ Limpar Lista</button>
+      </div>
+    </div>
+
+    <!-- Campos fixos (usados em todos os cartões) -->
+    <div class="campos-fixos">
+      <h3>⚙️ Dados comuns a todos</h3>
       <div class="campo">
         <label>Quantidade:</label>
         <input type="number" id="quantidade" value="1" min="1">
@@ -48,17 +67,12 @@
         <input type="text" id="obs">
       </div>
       <div class="campo">
-        <label>Telefone:</label>
+        <label>Telefone (se disponível):</label>
         <input type="text" id="telefone">
       </div>
       <div class="campo">
         <label>Data (automático):</label>
         <input type="text" id="data" readonly>
-      </div>
-
-      <div class="botoes">
-        <button id="enviarBtn" class="btn enviar">✅ Enviar para Planilha</button>
-        <button id="escanearOutroBtn" class="btn">🔄 Escanear Outro</button>
       </div>
     </div>
 
