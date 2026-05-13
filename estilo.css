@@ -17,7 +17,8 @@ body {
   width: 100%;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-h1 { text-align: center; color: #2e7d32; }
+h1 { text-align: center; color: #2e7d32; margin: 0 0 15px; }
+h3 { margin: 15px 0 5px; color: #333; }
 .camera-area { text-align: center; }
 video {
   width: 100%;
@@ -36,17 +37,60 @@ video {
   margin-top: 8px;
 }
 #capturarBtn { background: #2196F3; color: white; }
-#enviarBtn { background: #4CAF50; color: white; }
-#escanearOutroBtn { background: #FF9800; color: white; }
-.resultado { margin-top: 20px; }
-.campo { margin-bottom: 12px; }
-.campo label { display: block; margin-bottom: 4px; font-weight: bold; }
+.enviar { background: #4CAF50; color: white; }
+.secundario { background: #757575; color: white; }
+.resultado { 
+  margin-top: 20px; 
+  padding: 15px;
+  background: #f9fbe7;
+  border-radius: 8px;
+}
+.campo { margin-bottom: 10px; }
+.campo label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 14px; }
 .campo input, .campo select {
   width: 100%;
   padding: 10px;
   border: 2px solid #ddd;
   border-radius: 6px;
   font-size: 16px;
+}
+.botoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.botoes .btn { flex: 1; margin-top: 8px; }
+#listaAcumulada {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+#itensLista {
+  list-style: none;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 10px 0;
+}
+#itensLista li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: white;
+  border-radius: 6px;
+  margin-bottom: 5px;
+  border: 1px solid #ddd;
+}
+#itensLista li button {
+  background: #ff5252;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
 }
 .status {
   margin-top: 15px;
