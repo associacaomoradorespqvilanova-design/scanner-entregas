@@ -1,0 +1,59 @@
+* { box-sizing: border-box; }
+body {
+  font-family: Arial, sans-serif;
+  background: #e8f5e9;
+  margin: 0;
+  padding: 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.container {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+h1 { text-align: center; color: #2e7d32; }
+.camera-area { text-align: center; }
+video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+  margin-bottom: 10px;
+}
+.btn {
+  padding: 14px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+}
+#capturarBtn { background: #2196F3; color: white; }
+#enviarBtn { background: #4CAF50; color: white; }
+#escanearOutroBtn { background: #FF9800; color: white; }
+.resultado { margin-top: 20px; }
+.campo { margin-bottom: 12px; }
+.campo label { display: block; margin-bottom: 4px; font-weight: bold; }
+.campo input, .campo select {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+}
+.status {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: bold;
+}
+.sucesso { background: #c8e6c9; color: #1b5e20; }
+.erro { background: #ffcdd2; color: #b71c1c; }
