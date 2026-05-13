@@ -8,7 +8,7 @@ const GEMINI_API_KEY =
   'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
 
 const GEMINI_MODEL =
-  'gemini-2.0-flash';
+  'gemini-1.5-flash-latest';
 
 // ==============================
 // ELEMENTOS
@@ -212,8 +212,8 @@ async function extrairComGemini(
   imagemBase64
 ) {
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+ const url =
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   const payload = {
 
