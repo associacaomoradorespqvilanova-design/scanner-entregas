@@ -24,7 +24,6 @@ document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
 
 // Escanear cartão
 document.getElementById('capturarBtn').addEventListener('click', async () => {
-  // Desenhar frame no canvas
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -46,7 +45,7 @@ document.getElementById('capturarBtn').addEventListener('click', async () => {
     const { data: { text } } = await worker.recognize(imageData);
     await worker.terminate();
     
-    // Processar o texto extraído
+    // Processamento inteligente do texto
     processarTexto(text);
   } catch (err) {
     alert('Erro no OCR: ' + err.message);
@@ -56,29 +55,85 @@ document.getElementById('capturarBtn').addEventListener('click', async () => {
   document.getElementById('capturarBtn').textContent = '📷 Escanear Cartão';
 });
 
+/**
+ * Identifica nome e apenas o nome da rua (logradouro) no texto do cartão.
+ * Regras:
+ *  - Tudo antes da primeira linha que contém um tipo de logradouro (RUA, AV. etc.) é considerado NOME.
+ *  - O endereço será a linha do logradouro + (se existir) a linha seguinte que contenha número.
+ *  - Apenas o nome da rua e o número (se houver) são mantidos – bairro, cidade, CEP são descartados.
+ */
 function processarTexto(texto) {
-  // Exemplo simples: assume que o cartão tem o nome e o endereço em linhas separadas.
-  // Você pode ajustar a lógica conforme o padrão real dos seus cartões.
-  const linhas = texto.split('\n').filter(l => l.trim() !== '');
+  // Limpeza básica
+  const linhasOriginais = texto
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 1); // remove linhas vazias ou com 1 caractere (ruído)
   
-  let nome = '';
-  let endereco = '';
+  // Palavras‑chave que indicam início de endereço (maiúsculas, sem acentos para facilitar)
+  const prefixosRua = [
+    'RUA', 'R ', 'AVENIDA', 'AV ', 'AV.', 'TRAVESSA', 'TRAV.', 'TRAV',
+    'PRACA', 'PRAÇA', 'ALAMEDA', 'AL ', 'ESTRADA', 'ESTR.', 'RODOVIA', 'ROD.',
+    'BECO', 'BEC ', 'LARGO', 'LGO', 'VIELA', 'VLA'
+  ];
   
-  // Heurística: a primeira linha é o nome, o resto é o endereço
-  if (linhas.length >= 2) {
-    nome = linhas[0].trim();
-    endereco = linhas.slice(1).join(', ').trim();
-  } else if (linhas.length === 1) {
-    nome = linhas[0].trim();
+  // Expressão regular para detectar um número (parte do endereço)
+  const regexNumero = /,\s*\d+|\s+\d+\s*$|^\d+\s/; // vírgula seguida de número, ou número no final, ou número no início
+
+  let indiceInicioEndereco = -1;
+  
+  // Procura a primeira linha que começa com um dos prefixos de logradouro
+  for (let i = 0; i < linhasOriginais.length; i++) {
+    const linhaUpper = linhasOriginais[i].toUpperCase().replace(/[^A-Z\s]/g, '');
+    if (prefixosRua.some(prefixo => linhaUpper.startsWith(prefixo + ' ') || linhaUpper === prefixo)) {
+      indiceInicioEndereco = i;
+      break;
+    }
   }
   
-  document.getElementById('nome').value = nome.toUpperCase();
-  document.getElementById('endereco').value = endereco.toUpperCase();
+  // Se não encontrou prefixo de rua, usa heurística simples (primeira linha = nome, restante = endereço)
+  if (indiceInicioEndereco === -1) {
+    if (linhasOriginais.length >= 2) {
+      document.getElementById('nome').value = linhasOriginais[0].toUpperCase();
+      // Junta todo o resto como endereço, mas vamos tentar limitar
+      const resto = linhasOriginais.slice(1).join(', ').toUpperCase();
+      document.getElementById('endereco').value = resto;
+    } else if (linhasOriginais.length === 1) {
+      document.getElementById('nome').value = linhasOriginais[0].toUpperCase();
+      document.getElementById('endereco').value = '';
+    }
+    document.getElementById('resultado').style.display = 'block';
+    return;
+  }
+  
+  // Extrai nome: todas as linhas antes do endereço
+  const linhasNome = linhasOriginais.slice(0, indiceInicioEndereco);
+  const nome = linhasNome.join(' ').toUpperCase().trim();
+  
+  // Extrai endereço: linha do logradouro + próxima linha se contiver número
+  let endereco = linhasOriginais[indiceInicioEndereco].trim();
+  
+  // Verifica se a linha seguinte (se existir) parece conter um número (ex: ", 123" ou "123")
+  if (indiceInicioEndereco + 1 < linhasOriginais.length) {
+    const linhaSeguinte = linhasOriginais[indiceInicioEndereco + 1].trim();
+    if (regexNumero.test(linhaSeguinte) || /^\d+$/.test(linhaSeguinte)) {
+      endereco += ', ' + linhaSeguinte;
+    }
+    // Se a linha seguinte não parece número, ignoramos (deve ser bairro/cidade)
+  }
+  
+  // Converte para maiúsculas
+  endereco = endereco.toUpperCase();
+  
+  // Remove possíveis sufixos indesejados (bairro, cidade) se vierem na mesma linha? 
+  // Por simplicidade, mantemos como está, mas já cortamos linhas extras.
+  
+  document.getElementById('nome').value = nome;
+  document.getElementById('endereco').value = endereco;
   
   document.getElementById('resultado').style.display = 'block';
 }
 
-// Enviar para a planilha
+// Enviar para a planilha (mantido igual)
 document.getElementById('enviarBtn').addEventListener('click', async () => {
   const dados = {
     nome: document.getElementById('nome').value,
@@ -117,7 +172,7 @@ document.getElementById('enviarBtn').addEventListener('click', async () => {
   }
 });
 
-// Escanear outro (limpar)
+// Escanear outro
 document.getElementById('escanearOutroBtn').addEventListener('click', () => {
   limparCampos();
   document.getElementById('resultado').style.display = 'none';
@@ -126,7 +181,6 @@ document.getElementById('escanearOutroBtn').addEventListener('click', () => {
 function limparCampos() {
   document.getElementById('nome').value = '';
   document.getElementById('endereco').value = '';
-  // Mantém quantidade, tipo, etc. como estavam, mas você pode resetar se quiser
 }
 
 function mostrarStatus(msg, classe) {
