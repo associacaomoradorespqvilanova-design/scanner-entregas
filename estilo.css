@@ -38,6 +38,7 @@ video {
 }
 #iniciarCameraBtn { background: #FF9800; color: white; }
 #capturarBtn { background: #2196F3; color: white; }
+#capturarBtn:disabled { background: #cccccc; color: #666; }
 .enviar { background: #4CAF50; color: white; }
 .secundario { background: #757575; color: white; }
 .resultado { 
