@@ -39,7 +39,6 @@ async function tentarIniciarCamera() {
 
   try {
 
-    // importante mobile
     video.setAttribute(
       'autoplay',
       true
@@ -78,15 +77,12 @@ async function tentarIniciarCamera() {
 
     await video.play();
 
-    // melhora visual
     video.style.filter =
       'contrast(145%) brightness(110%) grayscale(100%)';
 
     definirCameraPronta(true);
 
-    console.log(
-      'CAMERA OK'
-    );
+    console.log('CAMERA OK');
 
   } catch (err) {
 
@@ -228,28 +224,76 @@ async function extrairComGemini(
         {
 
           text:
-`Leia este cartão brasileiro.
+`Você é um leitor de cartões de entrega brasileiros.
 
-Extraia APENAS:
-- nome completo
-- rua + número
+REGRAS OBRIGATÓRIAS:
 
-IGNORE:
-- bairro
-- cidade
-- estado
-- CEP
-- observações
-- textos extras
+CAMPO "nome":
+- SOMENTE nome de pessoa
+- NUNCA incluir:
+  - números
+  - CEP
+  - cidade
+  - bairro
+  - estado
+  - endereço
+- manter abreviações do nome
+- exemplos válidos:
+  - "ELIANE A D LIMA"
+  - "JOSE CARLOS"
+  - "M A SOUZA"
 
-RETORNE SOMENTE JSON.
+CAMPO "endereco":
+- retornar SOMENTE:
+  LOGRADOURO + NÚMERO
 
-Exemplo:
+- PARAR EXATAMENTE no número
+- NÃO incluir:
+  - bairro
+  - cidade
+  - estado
+  - CEP
+  - complemento
 
+EXEMPLOS:
+
+Entrada:
+RUA SAO JOSE 15
+PARQUE VILA NOVA
+DUQUE DE CAXIAS RJ
+
+Saída:
 {
-  "nome": "LUCIANA ALVES LOPES",
-  "endereco": "RUA SAO PAULO 12"
-}`
+  "nome": "MARIA JOSE",
+  "endereco": "RUA SAO JOSE 15"
+}
+
+Outro exemplo:
+TV BOA ESPERANCA 44
+JARDIM PRIMAVERA
+
+Saída:
+{
+  "nome": "ELIANE A D LIMA",
+  "endereco": "TV BOA ESPERANCA 44"
+}
+
+IMPORTANTÍSSIMO:
+- se existir número no campo nome, está ERRADO
+- endereço SEMPRE termina no número
+- preserve abreviações:
+  - R
+  - R.
+  - TV
+  - TV.
+  - BC
+  - BC.
+  - AV
+  - AV.
+
+RETORNE SOMENTE JSON VÁLIDO.
+SEM EXPLICAÇÕES.
+SEM TEXTO EXTRA.`
         },
 
         {
@@ -334,14 +378,65 @@ Exemplo:
 // ==============================
 // LIMPEZA
 // ==============================
-function limparTexto(texto) {
+function limparTexto(
+  texto,
+  tipo = ''
+) {
 
-  return texto
+  texto = texto
     .replace(/\s+/g, ' ')
-    .replace(/CEP.*$/gi, '')
-    .replace(/RJ.*$/gi, '')
-    .replace(/DUQUE DE CAXIAS.*$/gi, '')
     .trim();
+
+  // remove CEP
+  texto = texto.replace(
+    /\b\d{5}-?\d{3}\b/g,
+    ''
+  );
+
+  // remove cidade/estado
+  texto = texto.replace(
+    /\bDUQUE DE CAXIAS\b/gi,
+    ''
+  );
+
+  texto = texto.replace(
+    /\bRJ\b/gi,
+    ''
+  );
+
+  if (tipo === 'nome') {
+
+    // remove números
+    texto = texto.replace(
+      /\d+/g,
+      ''
+    );
+
+    // remove palavras de endereço
+    texto = texto.replace(
+      /\b(RUA|R|AV|AVENIDA|TV|TRAVESSA|BC|BECO|AL|ALAMEDA|ESTRADA|ESTR)\b/gi,
+      ''
+    );
+
+    texto = texto
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  if (tipo === 'endereco') {
+
+    // pega somente até o número
+    const match =
+      texto.match(
+        /^(.+?\b\d{1,5})\b/
+      );
+
+    if (match) {
+      texto = match[1];
+    }
+  }
+
+  return texto.trim();
 }
 
 // ==============================
@@ -410,12 +505,14 @@ capturarBtn.addEventListener(
       // limpa
       let nome =
         limparTexto(
-          resultado.nome || ''
+          resultado.nome || '',
+          'nome'
         );
 
       let endereco =
         limparTexto(
-          resultado.endereco || ''
+          resultado.endereco || '',
+          'endereco'
         );
 
       // campos
