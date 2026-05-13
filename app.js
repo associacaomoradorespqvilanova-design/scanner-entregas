@@ -8,10 +8,14 @@ const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
-const capturarBtn = document.getElementById('capturarBtn');
-const iniciarCameraBtn = document.getElementById('iniciarCameraBtn');
+const capturarBtn =
+  document.getElementById('capturarBtn');
+
+const iniciarCameraBtn =
+  document.getElementById('iniciarCameraBtn');
 
 let listaEntregas = [];
+
 let cameraPronta = false;
 
 // ==============================
@@ -25,10 +29,17 @@ async function tentarIniciarCamera() {
       await navigator.mediaDevices.getUserMedia({
 
         video: {
-          facingMode: { ideal: 'environment' },
+          facingMode: {
+            ideal: 'environment'
+          },
 
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: {
+            ideal: 1920
+          },
+
+          height: {
+            ideal: 1080
+          }
         },
 
         audio: false
@@ -38,14 +49,16 @@ async function tentarIniciarCamera() {
 
     await new Promise((resolve) => {
 
-      video.onloadedmetadata = () => resolve();
+      video.onloadedmetadata =
+        () => resolve();
 
-      if (video.readyState >= 2) resolve();
+      if (video.readyState >= 2)
+        resolve();
     });
 
     await video.play();
 
-    // melhora visual
+    // melhora contraste visual
     video.style.filter =
       'contrast(140%) brightness(110%)';
 
@@ -59,7 +72,8 @@ async function tentarIniciarCamera() {
 
     definirCameraPronta(false);
 
-    iniciarCameraBtn.style.display = 'block';
+    iniciarCameraBtn.style.display =
+      'block';
 
     capturarBtn.disabled = false;
 
@@ -79,7 +93,8 @@ function definirCameraPronta(pronto) {
     capturarBtn.textContent =
       '📷 Escanear Cartão';
 
-    iniciarCameraBtn.style.display = 'none';
+    iniciarCameraBtn.style.display =
+      'none';
 
   } else {
 
@@ -92,7 +107,8 @@ function definirCameraPronta(pronto) {
 
 async function iniciarCameraManual() {
 
-  iniciarCameraBtn.style.display = 'none';
+  iniciarCameraBtn.style.display =
+    'none';
 
   capturarBtn.disabled = true;
 
@@ -108,13 +124,13 @@ iniciarCameraBtn.addEventListener(
 );
 
 // ==============================
-// DATA
+// DATA AUTOMÁTICA
 // ==============================
 document.getElementById('data').value =
   new Date().toLocaleDateString('pt-BR');
 
 // ==============================
-// ESCANEAR
+// ESCANEAR CARTÃO
 // ==============================
 capturarBtn.addEventListener(
   'click',
@@ -129,16 +145,19 @@ capturarBtn.addEventListener(
 
     try {
 
-      // estabilização
+      // pequena estabilização
       await new Promise(resolve =>
-        setTimeout(resolve, 500)
+        setTimeout(resolve, 400)
       );
 
       // ==========================
-      // CAPTURA ORIGINAL
+      // CAPTURA
       // ==========================
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width =
+        video.videoWidth;
+
+      canvas.height =
+        video.videoHeight;
 
       ctx.drawImage(
         video,
@@ -148,53 +167,24 @@ capturarBtn.addEventListener(
         canvas.height
       );
 
-      // ==================================================
-      // RECORTE DO NOME
-      // ==================================================
-
-      // ÁREA SUPERIOR ESQUERDA
-      const nomeX = 0;
-      const nomeY = canvas.height * 0.03;
-
-      const nomeW = canvas.width * 0.75;
-      const nomeH = canvas.height * 0.18;
-
-      // canvas auxiliar
-      const nomeCanvas =
-        document.createElement('canvas');
-
-      const nomeCtx =
-        nomeCanvas.getContext('2d');
-
-      nomeCanvas.width = nomeW;
-      nomeCanvas.height = nomeH;
-
-      nomeCtx.drawImage(
-        canvas,
-        nomeX,
-        nomeY,
-        nomeW,
-        nomeH,
-        0,
-        0,
-        nomeW,
-        nomeH
-      );
-
-      // ==================================================
+      // ==========================
       // MELHORA OCR
-      // ==================================================
+      // ==========================
       const frame =
-        nomeCtx.getImageData(
+        ctx.getImageData(
           0,
           0,
-          nomeW,
-          nomeH
+          canvas.width,
+          canvas.height
         );
 
       const data = frame.data;
 
-      for (let i = 0; i < data.length; i += 4) {
+      for (
+        let i = 0;
+        i < data.length;
+        i += 4
+      ) {
 
         const media =
           (
@@ -203,135 +193,181 @@ capturarBtn.addEventListener(
             data[i + 2]
           ) / 3;
 
+        // CONTRASTE
         const valor =
-          media > 160 ? 255 : 0;
+          media > 155 ? 255 : 0;
 
         data[i] = valor;
         data[i + 1] = valor;
         data[i + 2] = valor;
       }
 
-      nomeCtx.putImageData(frame, 0, 0);
+      ctx.putImageData(frame, 0, 0);
 
-      // ==================================================
-      // IMAGEM FINAL
-      // ==================================================
       const imageData =
-        nomeCanvas.toDataURL('image/png');
+        canvas.toDataURL('image/png');
 
-      // ==================================================
+      // ==========================
       // OCR
-      // ==================================================
+      // ==========================
       const worker =
         await Tesseract.createWorker('por');
 
       await worker.setParameters({
 
         tessedit_pageseg_mode:
-          Tesseract.PSM.SINGLE_LINE,
+          Tesseract.PSM.AUTO,
 
         tessedit_char_whitelist:
-          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÉÊÍÓÔÕÚÇàáâãéêíóôõúç '
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÉÊÍÓÔÕÚÇàáâãéêíóôõúç0123456789-.,/: '
 
       });
 
       const {
         data: { text }
-      } = await worker.recognize(imageData);
+      } =
+        await worker.recognize(
+          imageData
+        );
 
       await worker.terminate();
 
-      console.log('OCR BRUTO:', text);
+      console.log('OCR BRUTO');
+      console.log(text);
 
-      // ==================================================
-      // LIMPEZA NOME
-      // ==================================================
-      let nome = text
-        .replace(/\n/g, ' ')
+      // ==========================
+      // LIMPEZA TEXTO
+      // ==========================
+      let texto = text
         .replace(/\|/g, ' ')
-        .replace(/\s+/g, ' ')
+        .replace(/\n+/g, '\n')
+        .replace(/[ ]+/g, ' ')
         .trim();
 
-      // pega possíveis nomes
-      const nomesProvaveis =
-        nome.match(
-          /\b[A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,}){1,6}\b/gi
-        );
+      const linhas =
+        texto
+          .split('\n')
+          .map(l => l.trim())
+          .filter(
+            l => l.length > 3
+          );
 
-      if (
-        nomesProvaveis &&
-        nomesProvaveis.length > 0
-      ) {
+      console.log('LINHAS OCR');
+      console.log(linhas);
 
-        nome =
-          nomesProvaveis.sort(
-            (a, b) =>
-              b.length - a.length
-          )[0];
+      // ==========================
+      // ENCONTRAR NOME
+      // ==========================
+      let nome = '';
+
+      for (const linha of linhas) {
+
+        // ignora lixo
+        if (
+          linha.match(
+            /CEP|STATUS|DATA|VISITA|IDENTIDADE/i
+          )
+        ) continue;
+
+        // ignora linhas com muitos números
+        const qtdNumeros =
+          (
+            linha.match(/\d/g)
+            || []
+          ).length;
+
+        if (qtdNumeros > 2)
+          continue;
+
+        // provável nome
+        if (
+          linha.length > 10 &&
+          linha.length < 60 &&
+          linha.match(
+            /[A-ZÀ-Ú]{2,}/
+          )
+        ) {
+
+          nome = linha;
+
+          break;
+        }
       }
 
-      // remove lixo comum
+      // limpa lixo OCR
       nome = nome
-        .replace(/\b(OO|IO|LO|OI)\b/g, '')
-        .replace(/\bRU\b/g, '')
-        .replace(/\bSS\b/g, '')
-        .replace(/\bAA\b/g, '')
-        .replace(/\s+/g, ' ')
+
+        .replace(
+          /\b(RU|SS|AA|OO|IO|LO)\b/g,
+          ''
+        )
+
+        .replace(
+          /[^A-ZÀ-Úa-zà-ú\s]/g,
+          ''
+        )
+
+        .replace(
+          /\s+/g,
+          ' '
+        )
+
         .trim();
 
-      // ==================================================
-      // ENDEREÇO
-      // ==================================================
-
-      // usa OCR completo pro endereço
-      const workerEndereco =
-        await Tesseract.createWorker('por');
-
-      const {
-        data: { text: textoEndereco }
-      } =
-        await workerEndereco.recognize(
-          canvas.toDataURL('image/png')
-        );
-
-      await workerEndereco.terminate();
-
+      // ==========================
+      // ENCONTRAR ENDEREÇO
+      // ==========================
       let endereco = '';
 
-      const regexEndereco =
-        /(RUA|R\s|AV|AVENIDA|ESTRADA|TRAVESSA)\s.+?\d+/i;
+      for (const linha of linhas) {
 
-      const matchEndereco =
-        textoEndereco.match(regexEndereco);
+        if (
+          linha.match(
+            /\b(RUA|R\s|AV|AVENIDA|ESTRADA|TRAVESSA)\b/i
+          )
+        ) {
 
-      if (matchEndereco) {
+          endereco = linha;
 
-        endereco =
-          matchEndereco[0];
-
-      } else {
-
-        endereco =
-          'ENDEREÇO NÃO ENCONTRADO';
+          break;
+        }
       }
 
       endereco = endereco
-        .replace(/\s+/g, ' ')
+
+        .replace(
+          /\s+/g,
+          ' '
+        )
+
         .trim();
 
-      // ==================================================
+      // ==========================
       // RESULTADO
-      // ==================================================
-      console.log('NOME FINAL:', nome);
-      console.log('ENDEREÇO FINAL:', endereco);
+      // ==========================
+      console.log(
+        'NOME FINAL:',
+        nome
+      );
 
-      document.getElementById('nome').value =
+      console.log(
+        'ENDEREÇO FINAL:',
+        endereco
+      );
+
+      document.getElementById(
+        'nome'
+      ).value =
         nome.toUpperCase();
 
-      document.getElementById('endereco').value =
+      document.getElementById(
+        'endereco'
+      ).value =
         endereco.toUpperCase();
 
-      document.getElementById('resultado').style.display =
+      document.getElementById(
+        'resultado'
+      ).style.display =
         'block';
 
     } catch (err) {
@@ -339,7 +375,8 @@ capturarBtn.addEventListener(
       console.error(err);
 
       alert(
-        'Erro no OCR: ' + err.message
+        'Erro OCR: ' +
+        err.message
       );
     }
 
@@ -353,16 +390,21 @@ capturarBtn.addEventListener(
 // ==============================
 // ADICIONAR
 // ==============================
-document.getElementById('adicionarBtn')
-.addEventListener(
+document.getElementById(
+  'adicionarBtn'
+).addEventListener(
   'click',
   () => {
 
     const nome =
-      document.getElementById('nome').value;
+      document.getElementById(
+        'nome'
+      ).value;
 
     const endereco =
-      document.getElementById('endereco').value;
+      document.getElementById(
+        'endereco'
+      ).value;
 
     if (!nome || !endereco) {
 
@@ -379,63 +421,91 @@ document.getElementById('adicionarBtn')
       endereco,
 
       quantidade:
-        document.getElementById('quantidade').value,
+        document.getElementById(
+          'quantidade'
+        ).value,
 
       tipo:
-        document.getElementById('tipo').value,
+        document.getElementById(
+          'tipo'
+        ).value,
 
       numero:
-        document.getElementById('numero').value,
+        document.getElementById(
+          'numero'
+        ).value,
 
       obs:
-        document.getElementById('obs').value,
+        document.getElementById(
+          'obs'
+        ).value,
 
       telefone:
-        document.getElementById('telefone').value,
+        document.getElementById(
+          'telefone'
+        ).value,
 
       data:
-        document.getElementById('data').value
+        document.getElementById(
+          'data'
+        ).value
     });
 
     atualizarListaVisual();
 
-    document.getElementById('resultado').style.display =
-      'none';
+    document.getElementById(
+      'resultado'
+    ).style.display = 'none';
 
-    document.getElementById('nome').value = '';
+    document.getElementById(
+      'nome'
+    ).value = '';
 
-    document.getElementById('endereco').value = '';
+    document.getElementById(
+      'endereco'
+    ).value = '';
   }
 );
 
 // ==============================
 // ESCANEAR OUTRO
 // ==============================
-document.getElementById('escanearOutroBtn')
-.addEventListener(
+document.getElementById(
+  'escanearOutroBtn'
+).addEventListener(
   'click',
   () => {
 
-    document.getElementById('resultado').style.display =
-      'none';
+    document.getElementById(
+      'resultado'
+    ).style.display = 'none';
 
-    document.getElementById('nome').value = '';
+    document.getElementById(
+      'nome'
+    ).value = '';
 
-    document.getElementById('endereco').value = '';
+    document.getElementById(
+      'endereco'
+    ).value = '';
   }
 );
 
 // ==============================
 // ENVIAR TUDO
 // ==============================
-document.getElementById('enviarTudoBtn')
-.addEventListener(
+document.getElementById(
+  'enviarTudoBtn'
+).addEventListener(
   'click',
   async () => {
 
-    if (listaEntregas.length === 0) {
+    if (
+      listaEntregas.length === 0
+    ) {
 
-      alert('Nenhum cartão.');
+      alert(
+        'Nenhum cartão.'
+      );
 
       return;
     }
@@ -448,19 +518,22 @@ document.getElementById('enviarTudoBtn')
     try {
 
       const resposta =
-        await fetch(WEBAPP_URL, {
+        await fetch(
+          WEBAPP_URL,
+          {
 
-          method: 'POST',
+            method: 'POST',
 
-          body: JSON.stringify(
-            listaEntregas
-          ),
+            body: JSON.stringify(
+              listaEntregas
+            ),
 
-          headers: {
-            'Content-Type':
-              'application/json'
+            headers: {
+              'Content-Type':
+                'application/json'
+            }
           }
-        });
+        );
 
       const resultado =
         await resposta.json();
@@ -468,7 +541,8 @@ document.getElementById('enviarTudoBtn')
       if (resultado.success) {
 
         mostrarStatus(
-          '✅ ' + resultado.message,
+          '✅ ' +
+          resultado.message,
           'sucesso'
         );
 
@@ -479,7 +553,8 @@ document.getElementById('enviarTudoBtn')
       } else {
 
         mostrarStatus(
-          '❌ ' + resultado.message,
+          '❌ ' +
+          resultado.message,
           'erro'
         );
       }
@@ -489,7 +564,7 @@ document.getElementById('enviarTudoBtn')
       console.error(err);
 
       mostrarStatus(
-        '❌ Erro conexão',
+        '❌ Falha conexão',
         'erro'
       );
     }
@@ -499,14 +574,19 @@ document.getElementById('enviarTudoBtn')
 // ==============================
 // LIMPAR LISTA
 // ==============================
-document.getElementById('limparListaBtn')
-.addEventListener(
+document.getElementById(
+  'limparListaBtn'
+).addEventListener(
   'click',
   () => {
 
-    if (listaEntregas.length === 0) {
+    if (
+      listaEntregas.length === 0
+    ) {
 
-      alert('Lista vazia.');
+      alert(
+        'Lista vazia.'
+      );
 
       return;
     }
@@ -530,18 +610,26 @@ document.getElementById('limparListaBtn')
 function atualizarListaVisual() {
 
   const listaUl =
-    document.getElementById('itensLista');
+    document.getElementById(
+      'itensLista'
+    );
 
   const contador =
-    document.getElementById('contadorLista');
+    document.getElementById(
+      'contadorLista'
+    );
 
   const div =
-    document.getElementById('listaAcumulada');
+    document.getElementById(
+      'listaAcumulada'
+    );
 
   contador.textContent =
     listaEntregas.length;
 
-  if (listaEntregas.length === 0) {
+  if (
+    listaEntregas.length === 0
+  ) {
 
     div.style.display = 'none';
 
@@ -597,7 +685,9 @@ function mostrarStatus(
 ) {
 
   const status =
-    document.getElementById('status');
+    document.getElementById(
+      'status'
+    );
 
   status.textContent = msg;
 
@@ -608,7 +698,8 @@ function mostrarStatus(
 
     status.textContent = '';
 
-    status.className = 'status';
+    status.className =
+      'status';
 
   }, 4000);
 }
