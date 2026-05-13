@@ -5,7 +5,7 @@ const WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
 const GEMINI_API_KEY =
-  'SUA_API_KEY_AQUI';
+  'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
 
 const GEMINI_MODEL =
   'gemini-1.5-flash-latest';
@@ -77,7 +77,6 @@ async function tentarIniciarCamera() {
 
     await video.play();
 
-    // melhora visual
     video.style.filter =
       'contrast(145%) brightness(110%) grayscale(100%)';
 
@@ -241,18 +240,15 @@ CAMPO "nome":
 - NUNCA incluir números
 - NUNCA incluir endereço
 - NUNCA incluir CEP
-- NUNCA incluir bairro
 - Pode manter abreviações
 
 Exemplos válidos:
 "ELIANE A D LIMA"
 "JOAO PEDRO"
-"MARIA C"
 
 Exemplos inválidos:
 "ELIANE 25"
 "RUA SAO JOSE"
-"ELIANE CEP 22222"
 
 CAMPO "endereco":
 - Retorne SOMENTE até o número
@@ -261,7 +257,7 @@ CAMPO "endereco":
 - NÃO incluir cidade
 - NÃO incluir estado
 - NÃO incluir CEP
-- Manter abreviações exatamente como estiverem
+- Manter abreviações
 
 Exemplos válidos:
 "R SAO JOSE 15"
@@ -270,10 +266,8 @@ Exemplos válidos:
 
 Exemplos inválidos:
 "R SAO JOSE 15 PARQUE VILA NOVA"
-"R SAO JOSE 15 RJ"
-"R SAO JOSE CEP 22222"
 
-RETORNE SOMENTE JSON VÁLIDO:
+RETORNE SOMENTE JSON:
 
 {
   "nome": "",
@@ -373,7 +367,6 @@ function limparTexto(texto) {
     .trim();
 }
 
-// remove números do nome
 function limparNome(nome) {
 
   return nome
@@ -382,7 +375,6 @@ function limparNome(nome) {
     .trim();
 }
 
-// mantém endereço somente até o número
 function limparEndereco(endereco) {
 
   const match =
@@ -419,7 +411,6 @@ capturarBtn.addEventListener(
         setTimeout(resolve, 700)
       );
 
-      // captura
       canvas.width =
         video.videoWidth;
 
@@ -434,10 +425,8 @@ capturarBtn.addEventListener(
         canvas.height
       );
 
-      // melhora
       melhorarImagem();
 
-      // base64
       const imagemBase64 =
         canvas
           .toDataURL(
@@ -446,7 +435,6 @@ capturarBtn.addEventListener(
           )
           .split(',')[1];
 
-      // IA
       const resultado =
         await extrairComGemini(
           imagemBase64
@@ -460,7 +448,6 @@ capturarBtn.addEventListener(
         resultado
       );
 
-      // limpa
       let nome =
         limparTexto(
           resultado.nome || ''
@@ -477,7 +464,6 @@ capturarBtn.addEventListener(
       endereco =
         limparEndereco(endereco);
 
-      // campos
       document.getElementById(
         'nome'
       ).value =
