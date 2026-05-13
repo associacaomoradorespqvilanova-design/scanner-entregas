@@ -1,5 +1,5 @@
 // URL DO SEU WEB APP – SUBSTITUA PELA URL COPIADA NA ETAPA 1
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbw.../exec';
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwgGd5JeE9P8TcK5DSKqDiyIA9k9O_q57BMXwG4x3deX7JhH7XN7dSrm6p7HQ35hebn1A/exec';
 
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
