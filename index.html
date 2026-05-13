@@ -13,6 +13,16 @@
     <div class="camera-area">
       <video id="video" autoplay playsinline></video>
       
+      <!-- Overlay de calibração (sempre visível quando câmera ativa) -->
+      <div id="overlayGuias" class="overlay-guias" style="display:none;">
+        <div class="guia guia-nome">
+          <span class="guia-label">NOME</span>
+        </div>
+        <div class="guia guia-endereco">
+          <span class="guia-label">ENDEREÇO</span>
+        </div>
+      </div>
+      
       <!-- Fallback: só aparece se a câmera não iniciar sozinha -->
       <button id="iniciarCameraBtn" class="btn" style="display: none;">📷 Permitir Câmera</button>
       
