@@ -16,9 +16,7 @@ let listaEntregas = [];
 // ==============================
 
 async function startCamera() {
-
   try {
-
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: {
@@ -36,9 +34,7 @@ async function startCamera() {
     console.log('Câmera iniciada');
 
   } catch (erro) {
-
     console.error(erro);
-
     alert(
       'Erro ao acessar câmera.\n\n' +
       'Verifique:\n' +
@@ -63,62 +59,56 @@ document.getElementById('data').value =
 // ==============================
 
 document.getElementById('capturarBtn')
-.addEventListener('click', async () => {
+  .addEventListener('click', async () => {
 
-  if (!video.videoWidth) {
-    alert('A câmera ainda não carregou.');
-    return;
-  }
+    if (!video.videoWidth) {
+      alert('A câmera ainda não carregou.');
+      return;
+    }
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
 
-  ctx.drawImage(
-    video,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+    ctx.drawImage(
+      video,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
 
-  const imageData = canvas.toDataURL('image/png');
+    const imageData = canvas.toDataURL('image/png');
 
-  const btn = document.getElementById('capturarBtn');
+    const btn = document.getElementById('capturarBtn');
 
-  btn.disabled = true;
-  btn.textContent = '⏳ Lendo cartão...';
+    btn.disabled = true;
+    btn.textContent = '⏳ Lendo cartão...';
 
-  try {
+    try {
+      const worker = await Tesseract.createWorker('por');
 
-    const worker = await Tesseract.createWorker('por');
+      const {
+        data: { text }
+      } = await worker.recognize(imageData);
 
-    const {
-      data: { text }
-    } = await worker.recognize(imageData);
+      await worker.terminate();
 
-    await worker.terminate();
+      processarTexto(text);
 
-    processarTexto(text);
+    } catch (err) {
+      console.error(err);
+      alert('Erro OCR: ' + err.message);
+    }
 
-  } catch (err) {
-
-    console.error(err);
-
-    alert('Erro OCR: ' + err.message);
-
-  }
-
-  btn.disabled = false;
-  btn.textContent = '📷 Escanear Cartão';
-
-});
+    btn.disabled = false;
+    btn.textContent = '📷 Escanear Cartão';
+  });
 
 // ==============================
-// PROCESSAR TEXTO
+// PROCESSAR TEXTO (INTELIGENTE)
 // ==============================
 
 function processarTexto(texto) {
-
   console.log('OCR ORIGINAL');
   console.log(texto);
 
@@ -142,7 +132,6 @@ function processarTexto(texto) {
   const inicioEndereco = texto.search(regexEndereco);
 
   if (inicioEndereco !== -1) {
-
     nome = texto
       .substring(0, inicioEndereco)
       .trim();
@@ -150,9 +139,7 @@ function processarTexto(texto) {
     endereco = texto
       .substring(inicioEndereco)
       .trim();
-
   } else {
-
     const partes = texto.split(',');
 
     nome = partes[0] || '';
@@ -181,87 +168,120 @@ function processarTexto(texto) {
 }
 
 // ==============================
-// ADICIONAR LISTA
+// ADICIONAR À LISTA
 // ==============================
 
 document.getElementById('adicionarBtn')
-.addEventListener('click', () => {
+  .addEventListener('click', () => {
 
-  const nome =
-    document.getElementById('nome').value;
+    const nome =
+      document.getElementById('nome').value;
 
-  const endereco =
-    document.getElementById('endereco').value;
+    const endereco =
+      document.getElementById('endereco').value;
 
-  if (!nome || !endereco) {
-    alert('Nome e endereço obrigatórios');
-    return;
-  }
+    if (!nome || !endereco) {
+      alert('Nome e endereço obrigatórios');
+      return;
+    }
 
-  listaEntregas.push({
-    nome,
-    endereco,
-    quantidade:
-      document.getElementById('quantidade').value,
-    tipo:
-      document.getElementById('tipo').value,
-    numero:
-      document.getElementById('numero').value,
-    obs:
-      document.getElementById('obs').value,
-    telefone:
-      document.getElementById('telefone').value,
-    data:
-      document.getElementById('data').value
+    listaEntregas.push({
+      nome,
+      endereco,
+      quantidade: document.getElementById('quantidade').value,
+      tipo: document.getElementById('tipo').value,
+      numero: document.getElementById('numero').value,
+      obs: document.getElementById('obs').value,
+      telefone: document.getElementById('telefone').value,
+      data: document.getElementById('data').value
+    });
+
+    atualizarListaVisual();
+
+    document.getElementById('resultado').style.display = 'none';
+    document.getElementById('nome').value = '';
+    document.getElementById('endereco').value = '';
   });
 
-  atualizarListaVisual();
-
-  document.getElementById('resultado').style.display =
-    'none';
-
-  document.getElementById('nome').value = '';
-  document.getElementById('endereco').value = '';
-
-});
-
 // ==============================
-// DESCARTAR
+// DESCARTAR E ESCANEAR OUTRO
 // ==============================
 
 document.getElementById('escanearOutroBtn')
-.addEventListener('click', () => {
+  .addEventListener('click', () => {
 
-  document.getElementById('resultado').style.display =
-    'none';
+    document.getElementById('resultado').style.display = 'none';
+    document.getElementById('nome').value = '';
+    document.getElementById('endereco').value = '';
+  });
 
-  document.getElementById('nome').value = '';
-  document.getElementById('endereco').value = '';
+// ==============================
+// ENVIAR TUDO
+// ==============================
 
-});
+document.getElementById('enviarTudoBtn')
+  .addEventListener('click', async () => {
+
+    if (listaEntregas.length === 0) {
+      alert('Nenhum cartão na lista.');
+      return;
+    }
+
+    mostrarStatus('Enviando ' + listaEntregas.length + ' cartão(s)...', '');
+
+    try {
+      const resposta = await fetch(WEBAPP_URL, {
+        method: 'POST',
+        body: JSON.stringify(listaEntregas),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const resultado = await resposta.json();
+
+      if (resultado.success) {
+        mostrarStatus('✅ ' + resultado.message, 'sucesso');
+        listaEntregas = [];
+        atualizarListaVisual();
+      } else {
+        mostrarStatus('❌ ' + resultado.message, 'erro');
+      }
+    } catch (err) {
+      console.error(err);
+      mostrarStatus('❌ Falha na conexão', 'erro');
+    }
+  });
+
+// ==============================
+// LIMPAR LISTA
+// ==============================
+
+document.getElementById('limparListaBtn')
+  .addEventListener('click', () => {
+
+    if (listaEntregas.length === 0) {
+      alert('Lista já está vazia.');
+      return;
+    }
+
+    if (confirm('Apagar todos os cartões da lista?')) {
+      listaEntregas = [];
+      atualizarListaVisual();
+    }
+  });
 
 // ==============================
 // LISTA VISUAL
 // ==============================
 
 function atualizarListaVisual() {
+  const listaUl = document.getElementById('itensLista');
+  const contador = document.getElementById('contadorLista');
+  const div = document.getElementById('listaAcumulada');
 
-  const listaUl =
-    document.getElementById('itensLista');
-
-  const contador =
-    document.getElementById('contadorLista');
-
-  const div =
-    document.getElementById('listaAcumulada');
-
-  contador.textContent =
-    listaEntregas.length;
+  contador.textContent = listaEntregas.length;
 
   if (listaEntregas.length === 0) {
-
     div.style.display = 'none';
-
     return;
   }
 
@@ -270,7 +290,6 @@ function atualizarListaVisual() {
   listaUl.innerHTML = '';
 
   listaEntregas.forEach((item, index) => {
-
     const li = document.createElement('li');
 
     li.innerHTML = `
@@ -286,9 +305,7 @@ function atualizarListaVisual() {
     `;
 
     listaUl.appendChild(li);
-
   });
-
 }
 
 // ==============================
@@ -296,11 +313,8 @@ function atualizarListaVisual() {
 // ==============================
 
 function removerItem(indice) {
-
   listaEntregas.splice(indice, 1);
-
   atualizarListaVisual();
-
 }
 
 // ==============================
@@ -308,21 +322,13 @@ function removerItem(indice) {
 // ==============================
 
 function mostrarStatus(msg, classe) {
-
-  const status =
-    document.getElementById('status');
+  const status = document.getElementById('status');
 
   status.textContent = msg;
-
-  status.className =
-    'status ' + classe;
+  status.className = 'status ' + classe;
 
   setTimeout(() => {
-
     status.textContent = '';
-
     status.className = 'status';
-
   }, 4000);
-
 }
