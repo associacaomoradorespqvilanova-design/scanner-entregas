@@ -5,7 +5,7 @@ const WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
 const GEMINI_API_KEY =
-  'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
+  'SUA_API_KEY_AQUI';
 
 const GEMINI_MODEL =
   'gemini-1.5-flash-latest';
@@ -39,7 +39,6 @@ async function tentarIniciarCamera() {
 
   try {
 
-    // importante mobile
     video.setAttribute(
       'autoplay',
       true
@@ -217,7 +216,7 @@ async function extrairComGemini(
 ) {
 
   const url =
-    `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   const payload = {
 
@@ -228,27 +227,57 @@ async function extrairComGemini(
         {
 
           text:
-`Leia este cartão brasileiro.
+`Leia este cartão brasileiro de entrega.
 
-Extraia APENAS:
-- nome completo
-- rua + número
+OBJETIVO:
+Extrair SOMENTE:
+1. Nome da pessoa
+2. Rua/travessa/beco + número
 
-IGNORE:
-- bairro
-- cidade
-- estado
-- CEP
-- observações
-- textos extras
+REGRAS IMPORTANTES:
 
-RETORNE SOMENTE JSON.
+CAMPO "nome":
+- Deve conter APENAS nome de pessoa
+- NUNCA incluir números
+- NUNCA incluir endereço
+- NUNCA incluir CEP
+- NUNCA incluir bairro
+- Pode manter abreviações
 
-Exemplo:
+Exemplos válidos:
+"ELIANE A D LIMA"
+"JOAO PEDRO"
+"MARIA C"
+
+Exemplos inválidos:
+"ELIANE 25"
+"RUA SAO JOSE"
+"ELIANE CEP 22222"
+
+CAMPO "endereco":
+- Retorne SOMENTE até o número
+- PARAR após o número
+- NÃO incluir bairro
+- NÃO incluir cidade
+- NÃO incluir estado
+- NÃO incluir CEP
+- Manter abreviações exatamente como estiverem
+
+Exemplos válidos:
+"R SAO JOSE 15"
+"TV BOA ESPERANCA 22"
+"BECO DA PAZ 7"
+
+Exemplos inválidos:
+"R SAO JOSE 15 PARQUE VILA NOVA"
+"R SAO JOSE 15 RJ"
+"R SAO JOSE CEP 22222"
+
+RETORNE SOMENTE JSON VÁLIDO:
 
 {
-  "nome": "LUCIANA ALVES LOPES",
-  "endereco": "RUA SAO PAULO 12"
+  "nome": "",
+  "endereco": ""
 }`
         },
 
@@ -344,6 +373,30 @@ function limparTexto(texto) {
     .trim();
 }
 
+// remove números do nome
+function limparNome(nome) {
+
+  return nome
+    .replace(/[0-9]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// mantém endereço somente até o número
+function limparEndereco(endereco) {
+
+  const match =
+    endereco.match(
+      /^(.+?\d+)/
+    );
+
+  if (match) {
+    return match[1].trim();
+  }
+
+  return endereco.trim();
+}
+
 // ==============================
 // ESCANEAR
 // ==============================
@@ -417,6 +470,12 @@ capturarBtn.addEventListener(
         limparTexto(
           resultado.endereco || ''
         );
+
+      nome =
+        limparNome(nome);
+
+      endereco =
+        limparEndereco(endereco);
 
       // campos
       document.getElementById(
