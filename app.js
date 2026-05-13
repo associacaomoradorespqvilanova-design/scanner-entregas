@@ -59,7 +59,9 @@ async function tentarIniciarCamera() {
 
         video: {
 
-          facingMode: 'environment',
+          facingMode: {
+            ideal: 'environment'
+          },
 
           width: {
             ideal: 1280
@@ -215,7 +217,7 @@ async function extrairComGemini(
 ) {
 
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   const payload = {
 
@@ -226,52 +228,65 @@ async function extrairComGemini(
         {
 
           text:
-`Leia este cartão brasileiro de entrega.
-
-OBJETIVO:
-Extrair SOMENTE:
-1. Nome da pessoa
-2. Rua/travessa/beco + número
+`Leia este cartão brasileiro.
 
 REGRAS IMPORTANTES:
 
-CAMPO "nome":
-- Deve conter APENAS nome de pessoa
-- NUNCA incluir números
-- NUNCA incluir endereço
-- NUNCA incluir CEP
-- Pode manter abreviações
+1 - NO CAMPO "nome":
+- colocar SOMENTE nome de pessoa
+- NUNCA colocar números
+- NUNCA colocar endereço
+- manter abreviações
+- exemplos válidos:
+  "ELIANE A D LIMA"
+  "JOAO P SILVA"
 
-Exemplos válidos:
-"ELIANE A D LIMA"
-"JOAO PEDRO"
-
-Exemplos inválidos:
-"ELIANE 25"
-"RUA SAO JOSE"
-
-CAMPO "endereco":
-- Retorne SOMENTE até o número
-- PARAR após o número
+2 - NO CAMPO "endereco":
+- retornar SOMENTE rua/travessa/beco/avenida + número
+- PARAR no número
 - NÃO incluir bairro
 - NÃO incluir cidade
-- NÃO incluir estado
 - NÃO incluir CEP
-- Manter abreviações
+- NÃO incluir complemento
 
-Exemplos válidos:
-"R SAO JOSE 15"
-"TV BOA ESPERANCA 22"
-"BECO DA PAZ 7"
+EXEMPLOS:
 
-Exemplos inválidos:
-"R SAO JOSE 15 PARQUE VILA NOVA"
+Entrada:
+RUA SAO JOSE 15
+PARQUE VILA NOVA
 
-RETORNE SOMENTE JSON:
+Saída:
+"RUA SAO JOSE 15"
+
+Entrada:
+TV JOAO ALVES 44
+JARDIM PRIMAVERA
+
+Saída:
+"TV JOAO ALVES 44"
+
+Entrada:
+BCO DAS FLORES 88 AP 2
+
+Saída:
+"BCO DAS FLORES 88"
+
+MANTER abreviações:
+- R
+- RUA
+- TV
+- TRAV
+- BCO
+- AV
+- AL
+
+RETORNE SOMENTE JSON VÁLIDO.
+
+EXEMPLO FINAL:
 
 {
-  "nome": "",
-  "endereco": ""
+  "nome": "ELIANE A D LIMA",
+  "endereco": "RUA SAO JOSE 15"
 }`
         },
 
@@ -367,6 +382,7 @@ function limparTexto(texto) {
     .trim();
 }
 
+// remove números do nome
 function limparNome(nome) {
 
   return nome
@@ -375,6 +391,7 @@ function limparNome(nome) {
     .trim();
 }
 
+// corta endereço até o número
 function limparEndereco(endereco) {
 
   const match =
@@ -411,6 +428,7 @@ capturarBtn.addEventListener(
         setTimeout(resolve, 700)
       );
 
+      // captura
       canvas.width =
         video.videoWidth;
 
@@ -425,8 +443,10 @@ capturarBtn.addEventListener(
         canvas.height
       );
 
+      // melhora
       melhorarImagem();
 
+      // base64
       const imagemBase64 =
         canvas
           .toDataURL(
@@ -435,6 +455,7 @@ capturarBtn.addEventListener(
           )
           .split(',')[1];
 
+      // IA
       const resultado =
         await extrairComGemini(
           imagemBase64
@@ -448,22 +469,22 @@ capturarBtn.addEventListener(
         resultado
       );
 
+      // limpa
       let nome =
-        limparTexto(
-          resultado.nome || ''
+        limparNome(
+          limparTexto(
+            resultado.nome || ''
+          )
         );
 
       let endereco =
-        limparTexto(
-          resultado.endereco || ''
+        limparEndereco(
+          limparTexto(
+            resultado.endereco || ''
+          )
         );
 
-      nome =
-        limparNome(nome);
-
-      endereco =
-        limparEndereco(endereco);
-
+      // campos
       document.getElementById(
         'nome'
       ).value =
