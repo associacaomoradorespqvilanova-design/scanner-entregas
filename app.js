@@ -1,9 +1,17 @@
+````javascript
 // ==============================
 // CONFIGURAÇÕES
 // ==============================
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
+const WEBAPP_URL =
+  'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
-const GEMINI_API_KEY = 'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
+// SUA API KEY
+const GEMINI_API_KEY =
+  'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
+
+// MODELO MAIS ESTÁVEL
+const GEMINI_MODEL =
+  'gemini-1.5-flash-latest';
 
 // ==============================
 // ELEMENTOS
@@ -68,9 +76,9 @@ async function tentarIniciarCamera() {
 
     await video.play();
 
-    // melhora visual
+    // melhora imagem
     video.style.filter =
-      'contrast(140%) brightness(110%) grayscale(100%)';
+      'contrast(145%) brightness(110%) grayscale(100%)';
 
     definirCameraPronta(true);
 
@@ -166,8 +174,9 @@ function melhorarImagem() {
         data[i + 2]
       ) / 3;
 
+    // aumenta contraste
     const valor =
-      media > 150
+      media > 140
         ? 255
         : 0;
 
@@ -191,7 +200,7 @@ async function extrairComGemini(
 ) {
 
   const url =
-    `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   const payload = {
 
@@ -202,32 +211,34 @@ async function extrairComGemini(
         {
 
           text:
-            `Leia este cartão brasileiro.
+`Leia este cartão de entrega brasileiro.
 
-Extraia SOMENTE:
-- nome completo da pessoa
-- rua + número
+Você DEVE retornar APENAS:
 
-IGNORE:
+1. Nome completo da pessoa
+2. Rua + número
+
+IGNORE COMPLETAMENTE:
 - bairro
 - cidade
-- CEP
 - estado
+- CEP
+- observações
 - textos laterais
+- códigos
 
-Retorne APENAS JSON válido.
+RETORNE SOMENTE JSON.
 
-Exemplo:
+EXEMPLO:
+
 {
   "nome": "LUCIANA ALVES LOPES",
   "endereco": "RUA SAO PAULO 12"
 }
 
-Se não conseguir:
-{
-  "nome": "",
-  "endereco": ""
-}`
+NÃO escreva explicações.
+NÃO escreva markdown.
+NÃO escreva texto adicional.`
         },
 
         {
@@ -259,13 +270,40 @@ Se não conseguir:
         JSON.stringify(payload)
     });
 
+  // ==========================
+  // TRATAMENTO DE ERRO
+  // ==========================
   if (!response.ok) {
 
     const erro =
-      await response.text();
+      await response.json();
+
+    console.log(erro);
+
+    // quota excedida
+    if (
+      erro?.error?.code === 429
+    ) {
+
+      throw new Error(
+        'LIMITE DA IA ATINGIDO. AGUARDE 1 MINUTO.'
+      );
+    }
+
+    // api inválida
+    if (
+      erro?.error?.status ===
+      'INVALID_ARGUMENT'
+    ) {
+
+      throw new Error(
+        'API KEY INVÁLIDA'
+      );
+    }
 
     throw new Error(
-      erro
+      erro?.error?.message ||
+      'Erro desconhecido'
     );
   }
 
@@ -282,15 +320,42 @@ Se não conseguir:
     data?.candidates?.[0]?.content?.parts?.[0]?.text
     || '{"nome":"","endereco":""}';
 
+  // remove markdown
   const jsonLimpo =
     texto
       .replace(/```json/g, '')
       .replace(/```/g, '')
       .trim();
 
-  return JSON.parse(
-    jsonLimpo
-  );
+  let resultado;
+
+  try {
+
+    resultado =
+      JSON.parse(jsonLimpo);
+
+  } catch {
+
+    resultado = {
+      nome: '',
+      endereco: ''
+    };
+  }
+
+  return resultado;
+}
+
+// ==============================
+// LIMPEZA FINAL
+// ==============================
+function limparTexto(texto) {
+
+  return texto
+    .replace(/\s+/g, ' ')
+    .replace(/CEP.*$/gi, '')
+    .replace(/DUQUE DE CAXIAS.*$/gi, '')
+    .replace(/RJ.*$/gi, '')
+    .trim();
 }
 
 // ==============================
@@ -311,9 +376,9 @@ capturarBtn.addEventListener(
 
     try {
 
-      // espera foco estabilizar
+      // estabiliza foco
       await new Promise(resolve =>
-        setTimeout(resolve, 500)
+        setTimeout(resolve, 800)
       );
 
       // captura
@@ -334,16 +399,16 @@ capturarBtn.addEventListener(
       // melhora imagem
       melhorarImagem();
 
-      // transforma base64
+      // gera base64
       const imagemBase64 =
         canvas
           .toDataURL(
             'image/jpeg',
-            0.9
+            0.95
           )
           .split(',')[1];
 
-      // chama IA
+      // IA
       const resultado =
         await extrairComGemini(
           imagemBase64
@@ -357,18 +422,18 @@ capturarBtn.addEventListener(
         resultado
       );
 
-      // limpa resultado
+      // limpa
       let nome =
-        (resultado.nome || '')
-          .replace(/\s+/g, ' ')
-          .trim();
+        limparTexto(
+          resultado.nome || ''
+        );
 
       let endereco =
-        (resultado.endereco || '')
-          .replace(/\s+/g, ' ')
-          .trim();
+        limparTexto(
+          resultado.endereco || ''
+        );
 
-      // campos
+      // CAMPOS
       document.getElementById(
         'nome'
       ).value =
@@ -384,7 +449,7 @@ capturarBtn.addEventListener(
       ).style.display =
         'block';
 
-      // permite edição manual
+      // edição manual
       document.getElementById(
         'nome'
       ).readOnly = false;
@@ -768,3 +833,4 @@ function mostrarStatus(
 // INICIAR
 // ==============================
 tentarIniciarCamera();
+````
