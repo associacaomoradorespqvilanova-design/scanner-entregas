@@ -41,8 +41,8 @@ async function tentarIniciarCamera() {
     // Melhora visual
     video.style.filter = 'contrast(140%) brightness(110%)';
 
-    // Exibe overlay de calibragem
-    overlayGuias.style.display = 'block';
+    // Não exibe overlay (linhas-guia) – fica limpo
+    overlayGuias.style.display = 'none';
 
     definirCameraPronta(true);
     console.log('Câmera iniciada');
@@ -83,7 +83,7 @@ iniciarCameraBtn.addEventListener('click', iniciarCameraManual);
 document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
 
 // ==============================
-// FUNÇÃO OCR MELHORADA
+// FUNÇÃO OCR MELHORADA (única área)
 // ==============================
 async function fazerOCR(sx, sy, sw, sh) {
   const tempCanvas = document.createElement('canvas');
@@ -110,7 +110,6 @@ async function fazerOCR(sx, sy, sw, sh) {
   tempCtx.putImageData(frame, 0, 0);
 
   const worker = await Tesseract.createWorker('por');
-  // Não usar whitelist restritiva – deixa o OCR mais livre e depois limpamos
   const { data: { text } } = await worker.recognize(tempCanvas.toDataURL('image/png'));
   await worker.terminate();
 
@@ -134,56 +133,95 @@ capturarBtn.addEventListener('click', async () => {
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // ========== REGIÕES DE OCR (coordenadas relativas ao canvas) ==========
-    // Você pode ajustar esses valores conforme o layout do seu cartão
-    const regiaoNome = {
+    // ========== ÚNICA ÁREA DE OCR (pega toda a faixa onde está nome+endereço) ==========
+    // Ajuste conforme necessidade: aqui pega de 3% até 35% da altura e 94% da largura (central)
+    const areaTexto = {
       x: canvas.width * 0.03,
       y: canvas.height * 0.03,
-      w: canvas.width * 0.70,
-      h: canvas.height * 0.13
+      w: canvas.width * 0.94,
+      h: canvas.height * 0.32
     };
 
-    const regiaoEndereco = {
-      x: canvas.width * 0.03,
-      y: canvas.height * 0.16,
-      w: canvas.width * 0.70,
-      h: canvas.height * 0.20
+    const textoBruto = await fazerOCR(areaTexto.x, areaTexto.y, areaTexto.w, areaTexto.h);
+
+    console.log('OCR BRUTO:', textoBruto);
+
+    // ========== LIMPEZA INICIAL ==========
+    let limpo = textoBruto
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Correções de erros comuns do OCR (adicione mais se necessário)
+    const correcoes = {
+      'DNU': 'RUA',
+      'DNL': 'RUA',
+      'SUVU': 'SOUZA',
+      'SOUZ': 'SOUZA',
+      'CS': '',     // ruído comum (ex.: "5 CS" vira só "5")
+      'PRC': '',
+      'JUREMA': '',
+      'TONE': '',
+      'OO': '',
+      'IO': ''
     };
 
-    // OCR separado
-    const textoNome = await fazerOCR(regiaoNome.x, regiaoNome.y, regiaoNome.w, regiaoNome.h);
-    const textoEndereco = await fazerOCR(regiaoEndereco.x, regiaoEndereco.y, regiaoEndereco.w, regiaoEndereco.h);
+    for (const [erro, correto] of Object.entries(correcoes)) {
+      const regex = new RegExp('\\b' + erro + '\\b', 'gi');
+      limpo = limpo.replace(regex, correto);
+    }
 
-    console.log('OCR NOME BRUTO:', textoNome);
-    console.log('OCR ENDEREÇO BRUTO:', textoEndereco);
+    // Remove palavras com 2 caracteres, exceto abreviações úteis (R, AV, etc.)
+    const abreviacoesValidas = ['R', 'AV', 'AL', 'TV', 'TRAV', 'ESTR', 'ROD'];
+    limpo = limpo.split(' ')
+      .filter(p => p.length > 2 || abreviacoesValidas.includes(p.toUpperCase()))
+      .join(' ');
+
+    console.log('LIMPO:', limpo);
+
+    // ========== SEPARAR NOME E ENDEREÇO ==========
+    let nome = '';
+    let endereco = '';
+
+    // Regex para encontrar o início do logradouro (R, RUA, AVENIDA, etc.)
+    const regexEndereco = /\b(R\s|RUA\s|AV\s|AVENIDA\s|ESTRADA\s|TRAVESSA\s|ALAMEDA\s|REPUBLICA\s|RODOVIA\s)/i;
+    const match = limpo.match(regexEndereco);
+
+    if (match) {
+      const posicao = match.index;
+      nome = limpo.substring(0, posicao).trim();
+      endereco = limpo.substring(posicao).trim();
+    } else {
+      // Fallback: divide na primeira vírgula (se houver)
+      const partes = limpo.split(',');
+      nome = (partes[0] || '').trim();
+      endereco = partes.slice(1).join(',').trim();
+    }
 
     // ========== LIMPAR NOME ==========
-    let nome = '';
-    const candidatosNome = textoNome.match(/\b[A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,}){1,6}\b/g);
-    if (candidatosNome) {
-      const nomesValidos = candidatosNome.filter(c => {
-        const semEspaco = c.replace(/\s/g, '');
-        return /^[A-ZÀ-Ú]+$/.test(semEspaco) && semEspaco.length > 3 && !/(.)\1{2,}/.test(semEspaco);
-      });
-      if (nomesValidos.length > 0) {
-        nome = nomesValidos.sort((a, b) => b.length - a.length)[0];
-      }
+    // Remove números e pontuação final
+    nome = nome.replace(/\b\d+\b/g, '').replace(/[,.\-/]+$/g, '').trim();
+    // Se nome ficou vazio ou muito curto, tenta pegar as duas primeiras palavras do texto original
+    if (nome.length < 3) {
+      nome = limpo.split(' ').slice(0, 2).join(' ');
     }
-    // Limpeza extra de ruídos
-    nome = nome.replace(/\b(NNE|OO|IO|RU|SS|AA)\b/gi, '').replace(/\s+/g, ' ').trim();
 
-    // ========== LIMPAR ENDEREÇO ==========
-    let endereco = '';
-    const regexEndereco = /(RUA|R\s|AV|AVENIDA|ESTRADA|TRAVESSA)\s+[A-ZÀ-Ú0-9\s,.]*?(?:\s*\d+)?/i;
-    const matchEndereco = textoEndereco.match(regexEndereco);
-    if (matchEndereco) {
-      endereco = matchEndereco[0];
-      // Remove CEPs
-      endereco = endereco.replace(/\b\d{5}-\d{3}\b/, '');
-      // Remove bairros comuns (adicione mais conforme necessário)
-      endereco = endereco.replace(/\b(JUREMA|PRC|CENTRO|VILA\s\w+)\b/gi, '');
-      endereco = endereco.replace(/\s+/g, ' ').trim();
+    // ========== LIMPAR ENDEREÇO (só rua + número) ==========
+    // Pega até o primeiro número (casa) e ignora o resto
+    const regexNumeroCasa = /\b\d{1,5}\b/;
+    const matchNum = endereco.match(regexNumeroCasa);
+    if (matchNum) {
+      const posNum = matchNum.index + matchNum[0].length;
+      endereco = endereco.substring(0, posNum).trim();
+    } else {
+      // Se não tem número, fica com a primeira parte antes de qualquer vírgula
+      const partesEnd = endereco.split(',');
+      endereco = partesEnd[0].trim();
     }
+
+    // Remove CEPs e palavras indesejadas que possam ter sobrado
+    endereco = endereco.replace(/\b\d{5}-\d{3}\b/g, '').trim();
+    endereco = endereco.replace(/\s+/g, ' ').trim();
 
     // ========== RESULTADO ==========
     console.log('NOME FINAL:', nome);
