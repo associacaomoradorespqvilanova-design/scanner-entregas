@@ -5,9 +5,9 @@ const WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
 const GEMINI_API_KEY =
-  'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
+  'SUA_API_KEY_AQUI';
 
-const GEMINI_MODEL = 
+const GEMINI_MODEL =
   'gemini-1.5-flash-latest';
 
 // ==============================
@@ -39,6 +39,7 @@ async function tentarIniciarCamera() {
 
   try {
 
+    // importante mobile
     video.setAttribute(
       'autoplay',
       true
@@ -77,12 +78,15 @@ async function tentarIniciarCamera() {
 
     await video.play();
 
+    // melhora visual
     video.style.filter =
       'contrast(145%) brightness(110%) grayscale(100%)';
 
     definirCameraPronta(true);
 
-    console.log('CAMERA OK');
+    console.log(
+      'CAMERA OK'
+    );
 
   } catch (err) {
 
@@ -212,8 +216,8 @@ async function extrairComGemini(
   imagemBase64
 ) {
 
- const url =
-  https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY};
+  const url =
+    `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
   const payload = {
 
@@ -224,76 +228,28 @@ async function extrairComGemini(
         {
 
           text:
-`Você é um leitor de cartões de entrega brasileiros.
+`Leia este cartão brasileiro.
 
-REGRAS OBRIGATÓRIAS:
+Extraia APENAS:
+- nome completo
+- rua + número
 
-CAMPO "nome":
-- SOMENTE nome de pessoa
-- NUNCA incluir:
-  - números
-  - CEP
-  - cidade
-  - bairro
-  - estado
-  - endereço
-- manter abreviações do nome
-- exemplos válidos:
-  - "ELIANE A D LIMA"
-  - "JOSE CARLOS"
-  - "M A SOUZA"
+IGNORE:
+- bairro
+- cidade
+- estado
+- CEP
+- observações
+- textos extras
 
-CAMPO "endereco":
-- retornar SOMENTE:
-  LOGRADOURO + NÚMERO
+RETORNE SOMENTE JSON.
 
-- PARAR EXATAMENTE no número
-- NÃO incluir:
-  - bairro
-  - cidade
-  - estado
-  - CEP
-  - complemento
+Exemplo:
 
-EXEMPLOS:
-
-Entrada:
-RUA SAO JOSE 15
-PARQUE VILA NOVA
-DUQUE DE CAXIAS RJ
-
-Saída:
 {
-  "nome": "MARIA JOSE",
-  "endereco": "RUA SAO JOSE 15"
-}
-
-Outro exemplo:
-TV BOA ESPERANCA 44
-JARDIM PRIMAVERA
-
-Saída:
-{
-  "nome": "ELIANE A D LIMA",
-  "endereco": "TV BOA ESPERANCA 44"
-}
-
-IMPORTANTÍSSIMO:
-- se existir número no campo nome, está ERRADO
-- endereço SEMPRE termina no número
-- preserve abreviações:
-  - R
-  - R.
-  - TV
-  - TV.
-  - BC
-  - BC.
-  - AV
-  - AV.
-
-RETORNE SOMENTE JSON VÁLIDO.
-SEM EXPLICAÇÕES.
-SEM TEXTO EXTRA.`
+  "nome": "LUCIANA ALVES LOPES",
+  "endereco": "RUA SAO PAULO 12"
+}`
         },
 
         {
@@ -378,65 +334,14 @@ SEM TEXTO EXTRA.`
 // ==============================
 // LIMPEZA
 // ==============================
-function limparTexto(
-  texto,
-  tipo = ''
-) {
+function limparTexto(texto) {
 
-  texto = texto
+  return texto
     .replace(/\s+/g, ' ')
+    .replace(/CEP.*$/gi, '')
+    .replace(/RJ.*$/gi, '')
+    .replace(/DUQUE DE CAXIAS.*$/gi, '')
     .trim();
-
-  // remove CEP
-  texto = texto.replace(
-    /\b\d{5}-?\d{3}\b/g,
-    ''
-  );
-
-  // remove cidade/estado
-  texto = texto.replace(
-    /\bDUQUE DE CAXIAS\b/gi,
-    ''
-  );
-
-  texto = texto.replace(
-    /\bRJ\b/gi,
-    ''
-  );
-
-  if (tipo === 'nome') {
-
-    // remove números
-    texto = texto.replace(
-      /\d+/g,
-      ''
-    );
-
-    // remove palavras de endereço
-    texto = texto.replace(
-      /\b(RUA|R|AV|AVENIDA|TV|TRAVESSA|BC|BECO|AL|ALAMEDA|ESTRADA|ESTR)\b/gi,
-      ''
-    );
-
-    texto = texto
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  if (tipo === 'endereco') {
-
-    // pega somente até o número
-    const match =
-      texto.match(
-        /^(.+?\b\d{1,5})\b/
-      );
-
-    if (match) {
-      texto = match[1];
-    }
-  }
-
-  return texto.trim();
 }
 
 // ==============================
@@ -505,14 +410,12 @@ capturarBtn.addEventListener(
       // limpa
       let nome =
         limparTexto(
-          resultado.nome || '',
-          'nome'
+          resultado.nome || ''
         );
 
       let endereco =
         limparTexto(
-          resultado.endereco || '',
-          'endereco'
+          resultado.endereco || ''
         );
 
       // campos
