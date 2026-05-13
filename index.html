@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Scanner de Entregas</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <div class="container">
+    <h1>📦 Scanner de Entregas</h1>
+    
+    <div class="camera-area">
+      <video id="video" autoplay playsinline></video>
+      <button id="capturarBtn" class="btn">📷 Escanear Cartão</button>
+      <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+
+    <div id="resultado" class="resultado" style="display:none;">
+      <div class="campo">
+        <label>Nome (ENTREGUE Á):</label>
+        <input type="text" id="nome" readonly>
+      </div>
+      <div class="campo">
+        <label>Endereço:</label>
+        <input type="text" id="endereco" readonly>
+      </div>
+      
+      <!-- Campos fixos / manuais -->
+      <div class="campo">
+        <label>Quantidade:</label>
+        <input type="number" id="quantidade" value="1" min="1">
+      </div>
+      <div class="campo">
+        <label>Tipo:</label>
+        <select id="tipo">
+          <option value="SHOPEE">SHOPEE</option>
+          <option value="CARTÃO">CARTÃO</option>
+          <option value="CARTA">CARTA</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label>N°:</label>
+        <input type="text" id="numero">
+      </div>
+      <div class="campo">
+        <label>Observação:</label>
+        <input type="text" id="obs">
+      </div>
+      <div class="campo">
+        <label>Telefone:</label>
+        <input type="text" id="telefone">
+      </div>
+      <div class="campo">
+        <label>Data (automático):</label>
+        <input type="text" id="data" readonly>
+      </div>
+
+      <div class="botoes">
+        <button id="enviarBtn" class="btn enviar">✅ Enviar para Planilha</button>
+        <button id="escanearOutroBtn" class="btn">🔄 Escanear Outro</button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
