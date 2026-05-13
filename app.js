@@ -1,15 +1,12 @@
-````javascript
 // ==============================
 // CONFIGURAÇÕES
 // ==============================
 const WEBAPP_URL =
   'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
-// SUA API KEY
 const GEMINI_API_KEY =
   'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
 
-// MODELO MAIS ESTÁVEL
 const GEMINI_MODEL =
   'gemini-1.5-flash-latest';
 
@@ -42,21 +39,35 @@ async function tentarIniciarCamera() {
 
   try {
 
+    // importante mobile
+    video.setAttribute(
+      'autoplay',
+      true
+    );
+
+    video.setAttribute(
+      'muted',
+      true
+    );
+
+    video.setAttribute(
+      'playsinline',
+      true
+    );
+
     const stream =
       await navigator.mediaDevices.getUserMedia({
 
         video: {
 
-          facingMode: {
-            ideal: 'environment'
-          },
+          facingMode: 'environment',
 
           width: {
-            ideal: 1920
+            ideal: 1280
           },
 
           height: {
-            ideal: 1080
+            ideal: 720
           }
         },
 
@@ -65,33 +76,37 @@ async function tentarIniciarCamera() {
 
     video.srcObject = stream;
 
-    await new Promise(resolve => {
-
-      video.onloadedmetadata =
-        () => resolve();
-
-      if (video.readyState >= 2)
-        resolve();
-    });
-
     await video.play();
 
-    // melhora imagem
+    // melhora visual
     video.style.filter =
       'contrast(145%) brightness(110%) grayscale(100%)';
 
     definirCameraPronta(true);
 
+    console.log(
+      'CAMERA OK'
+    );
+
   } catch (err) {
 
-    console.error(err);
+    console.error(
+      'ERRO CAMERA',
+      err
+    );
+
+    alert(
+      'Erro ao abrir câmera: ' +
+      err.message
+    );
 
     definirCameraPronta(false);
 
     iniciarCameraBtn.style.display =
       'block';
 
-    capturarBtn.disabled = false;
+    capturarBtn.disabled =
+      false;
 
     capturarBtn.textContent =
       '📷 Permitir câmera';
@@ -104,7 +119,8 @@ function definirCameraPronta(pronto) {
 
   if (pronto) {
 
-    capturarBtn.disabled = false;
+    capturarBtn.disabled =
+      false;
 
     capturarBtn.textContent =
       '📷 Escanear Cartão';
@@ -114,7 +130,8 @@ function definirCameraPronta(pronto) {
 
   } else {
 
-    capturarBtn.disabled = true;
+    capturarBtn.disabled =
+      true;
 
     capturarBtn.textContent =
       '🔒 Câmera não iniciada';
@@ -126,7 +143,8 @@ async function iniciarCameraManual() {
   iniciarCameraBtn.style.display =
     'none';
 
-  capturarBtn.disabled = true;
+  capturarBtn.disabled =
+    true;
 
   capturarBtn.textContent =
     '⏳ Iniciando câmera...';
@@ -174,7 +192,6 @@ function melhorarImagem() {
         data[i + 2]
       ) / 3;
 
-    // aumenta contraste
     const valor =
       media > 140
         ? 255
@@ -211,34 +228,28 @@ async function extrairComGemini(
         {
 
           text:
-`Leia este cartão de entrega brasileiro.
+`Leia este cartão brasileiro.
 
-Você DEVE retornar APENAS:
+Extraia APENAS:
+- nome completo
+- rua + número
 
-1. Nome completo da pessoa
-2. Rua + número
-
-IGNORE COMPLETAMENTE:
+IGNORE:
 - bairro
 - cidade
 - estado
 - CEP
 - observações
-- textos laterais
-- códigos
+- textos extras
 
 RETORNE SOMENTE JSON.
 
-EXEMPLO:
+Exemplo:
 
 {
   "nome": "LUCIANA ALVES LOPES",
   "endereco": "RUA SAO PAULO 12"
-}
-
-NÃO escreva explicações.
-NÃO escreva markdown.
-NÃO escreva texto adicional.`
+}`
         },
 
         {
@@ -270,9 +281,6 @@ NÃO escreva texto adicional.`
         JSON.stringify(payload)
     });
 
-  // ==========================
-  // TRATAMENTO DE ERRO
-  // ==========================
   if (!response.ok) {
 
     const erro =
@@ -280,30 +288,9 @@ NÃO escreva texto adicional.`
 
     console.log(erro);
 
-    // quota excedida
-    if (
-      erro?.error?.code === 429
-    ) {
-
-      throw new Error(
-        'LIMITE DA IA ATINGIDO. AGUARDE 1 MINUTO.'
-      );
-    }
-
-    // api inválida
-    if (
-      erro?.error?.status ===
-      'INVALID_ARGUMENT'
-    ) {
-
-      throw new Error(
-        'API KEY INVÁLIDA'
-      );
-    }
-
     throw new Error(
       erro?.error?.message ||
-      'Erro desconhecido'
+      'Erro IA'
     );
   }
 
@@ -320,7 +307,6 @@ NÃO escreva texto adicional.`
     data?.candidates?.[0]?.content?.parts?.[0]?.text
     || '{"nome":"","endereco":""}';
 
-  // remove markdown
   const jsonLimpo =
     texto
       .replace(/```json/g, '')
@@ -346,15 +332,15 @@ NÃO escreva texto adicional.`
 }
 
 // ==============================
-// LIMPEZA FINAL
+// LIMPEZA
 // ==============================
 function limparTexto(texto) {
 
   return texto
     .replace(/\s+/g, ' ')
     .replace(/CEP.*$/gi, '')
-    .replace(/DUQUE DE CAXIAS.*$/gi, '')
     .replace(/RJ.*$/gi, '')
+    .replace(/DUQUE DE CAXIAS.*$/gi, '')
     .trim();
 }
 
@@ -376,9 +362,8 @@ capturarBtn.addEventListener(
 
     try {
 
-      // estabiliza foco
       await new Promise(resolve =>
-        setTimeout(resolve, 800)
+        setTimeout(resolve, 700)
       );
 
       // captura
@@ -396,10 +381,10 @@ capturarBtn.addEventListener(
         canvas.height
       );
 
-      // melhora imagem
+      // melhora
       melhorarImagem();
 
-      // gera base64
+      // base64
       const imagemBase64 =
         canvas
           .toDataURL(
@@ -433,7 +418,7 @@ capturarBtn.addEventListener(
           resultado.endereco || ''
         );
 
-      // CAMPOS
+      // campos
       document.getElementById(
         'nome'
       ).value =
@@ -449,7 +434,6 @@ capturarBtn.addEventListener(
       ).style.display =
         'block';
 
-      // edição manual
       document.getElementById(
         'nome'
       ).readOnly = false;
@@ -471,7 +455,7 @@ capturarBtn.addEventListener(
       } else {
 
         mostrarStatus(
-          '✅ Cartão lido com IA',
+          '✅ Cartão lido',
           'sucesso'
         );
       }
@@ -833,4 +817,3 @@ function mostrarStatus(
 // INICIAR
 // ==============================
 tentarIniciarCamera();
-````
