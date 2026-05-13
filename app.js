@@ -19,7 +19,6 @@ async function tentarIniciarCamera() {
         facingMode: { ideal: 'environment' },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
-        // Tenta forçar foco contínuo (se não suportar, ignora)
         focusMode: { ideal: 'continuous' },
         exposureMode: { ideal: 'continuous' },
         whiteBalanceMode: { ideal: 'continuous' }
@@ -36,7 +35,7 @@ async function tentarIniciarCamera() {
     });
     await video.play();
 
-    // Aumenta contraste e nitidez via CSS (não afeta o OCR, mas ajuda visualmente)
+    // Aplica um filtro sutil para melhorar contraste na tela
     video.style.filter = 'contrast(130%) brightness(110%) saturate(0%)';
 
     definirCameraPronta(true);
@@ -75,7 +74,6 @@ document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
 // PRÉ-PROCESSAMENTO COM RECORTE
 // ==============================
 function preProcessarImagem(sourceCanvas) {
-  // Recorta 10% das bordas para eliminar molduras/retângulos do cartão
   const marginX = sourceCanvas.width * 0.1;
   const marginY = sourceCanvas.height * 0.1;
   const recorteCanvas = document.createElement('canvas');
@@ -84,7 +82,6 @@ function preProcessarImagem(sourceCanvas) {
   const recorteCtx = recorteCanvas.getContext('2d');
   recorteCtx.drawImage(sourceCanvas, marginX, marginY, recorteCanvas.width, recorteCanvas.height, 0, 0, recorteCanvas.width, recorteCanvas.height);
 
-  // Redimensiona para no máximo 1024px (mantendo proporção)
   let { width, height } = recorteCanvas;
   const maxSize = 1024;
   if (width > height && width > maxSize) {
@@ -100,7 +97,6 @@ function preProcessarImagem(sourceCanvas) {
   const finalCtx = finalCanvas.getContext('2d');
   finalCtx.drawImage(recorteCanvas, 0, 0, width, height);
 
-  // Binarização (preto e branco pesado)
   const imageData = finalCtx.getImageData(0, 0, width, height);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
@@ -114,7 +110,6 @@ function preProcessarImagem(sourceCanvas) {
     data[i + 2] = val;
   }
   finalCtx.putImageData(imageData, 0, 0);
-
   return finalCanvas.toDataURL('image/png');
 }
 
@@ -133,17 +128,50 @@ async function realizarOCR(imagemDataURL) {
 }
 
 // ==============================
-// EXTRAIR NOME E ENDEREÇO (aprimorado)
+// EXTRAIR NOME E ENDEREÇO (usa quebra de linha)
 // ==============================
 function extrairDados(texto) {
-  // 1. Limpeza inicial
-  let limpo = texto
-    .replace(/\n/g, ' ')
-    .replace(/\|/g, ' ')
+  console.log('OCR original:', texto);
+
+  // Divide por quebras de linha primeiro
+  const linhas = texto
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 2); // ignora linhas muito curtas
+
+  let nome = '';
+  let enderecoBruto = '';
+
+  if (linhas.length >= 2) {
+    // Estratégia principal: primeira linha = nome, restante = endereço (junta com espaços)
+    nome = linhas[0];
+    enderecoBruto = linhas.slice(1).join(' ');
+  } else if (linhas.length === 1) {
+    // Uma única linha: usar regex para separar
+    const linha = linhas[0];
+    const regexEnd = /\b(R\s|RUA\s|AV\s|AVENIDA\s|TRAVESSA\s|TRV\s|BECO\s|BC\s|ALAMEDA\s|ESTRADA\s|RODOVIA\s|REPUBLICA\s)/i;
+    const match = linha.match(regexEnd);
+    if (match) {
+      nome = linha.substring(0, match.index).trim();
+      enderecoBruto = linha.substring(match.index).trim();
+    } else {
+      nome = linha;
+      enderecoBruto = '';
+    }
+  } else {
+    // Nenhuma linha válida
+    nome = '';
+    enderecoBruto = '';
+  }
+
+  // ========== LIMPEZA DO NOME ==========
+  // Remove pontuações, números e palavras proibidas
+  nome = nome
+    .replace(/[\d,.\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Palavras proibidas
+  // Remove palavras proibidas que ainda possam ter ficado
   const palavrasProibidas = [
     'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
     'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
@@ -151,144 +179,96 @@ function extrairDados(texto) {
   ];
   palavrasProibidas.forEach(p => {
     const regex = new RegExp('\\b' + p + '\\b', 'gi');
-    limpo = limpo.replace(regex, '');
+    nome = nome.replace(regex, '');
   });
 
-  // Correções de erros comuns
-  const correcoes = {
-    'DNU': 'RUA', 'DNL': 'RUA', 'SUVU': 'SOUZA', 'SOUZ': 'SOUZA',
-    'PRC': '', 'JUREMA': '', 'TONE': '', 'OO': '', 'IO': '', 'NNE': '', 'CS': '',
-    '—': '', ':': ''
-  };
-  for (const [erro, correto] of Object.entries(correcoes)) {
-    const regex = new RegExp('\\b' + erro + '\\b', 'gi');
-    limpo = limpo.replace(regex, correto);
+  // Remove palavras muito curtas (≤2), exceto abreviações válidas (mas no nome não faz sentido, então remove todas)
+  nome = nome.split(' ').filter(p => p.length > 2).join(' ');
+
+  // Se o nome ficou vazio, tenta pegar as primeiras palavras do texto original
+  if (!nome && linhas.length > 0) {
+    const palavras = linhas[0].split(' ').filter(p => /^[A-ZÀ-Ú]+$/i.test(p) && p.length > 2);
+    nome = palavras.slice(0, 3).join(' ');
   }
 
-  // Remove palavras com ≤2 caracteres, exceto abreviações de logradouro
-  const abreviacoesValidas = ['R', 'AV', 'TV', 'TRV', 'BC', 'AL', 'ESTR', 'ROD'];
-  let palavras = limpo.split(' ').filter(p => {
-    if (p.length > 2) return true;
-    if (abreviacoesValidas.includes(p.toUpperCase())) return true;
-    return false;
-  });
-  limpo = palavras.join(' ');
+  // ========== LIMPEZA DO ENDEREÇO (corte no número) ==========
+  // Limpeza básica
+  enderecoBruto = enderecoBruto
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  // Remove duplicações (metade igual)
-  const metade = Math.floor(palavras.length / 2);
-  const primeira = palavras.slice(0, metade).join(' ');
-  const segunda = palavras.slice(metade).join(' ');
-  if (primeira === segunda && primeira.length > 5) {
-    limpo = primeira;
-  }
-
-  // Remove sequências estranhas (ex.: "Xx", "aa") que ainda possam ter escapado
-  limpo = limpo.replace(/\b[a-zA-Z]{1,2}\b/g, '').replace(/\s+/g, ' ').trim();
-
-  console.log('Texto limpo:', limpo);
-
-  // 2. Expansão de abreviações para detecção
+  // Expande abreviações apenas para detecção (não altera o texto final)
   const mapaAbreviacoes = {
-    'R': 'RUA',
-    'AV': 'AVENIDA',
-    'TV': 'TRAVESSA',
-    'TRV': 'TRAVESSA',
-    'BC': 'BECO',
-    'AL': 'ALAMEDA',
-    'ESTR': 'ESTRADA',
-    'ROD': 'RODOVIA'
+    'R': 'RUA', 'AV': 'AVENIDA', 'TV': 'TRAVESSA', 'TRV': 'TRAVESSA',
+    'BC': 'BECO', 'AL': 'ALAMEDA', 'ESTR': 'ESTRADA', 'ROD': 'RODOVIA'
   };
-  let textoExpandido = limpo;
+  let textoExpandido = enderecoBruto;
   const chaves = Object.keys(mapaAbreviacoes).sort((a, b) => b.length - a.length);
   chaves.forEach(abrev => {
     const regex = new RegExp('\\b' + abrev + '\\b', 'gi');
     textoExpandido = textoExpandido.replace(regex, mapaAbreviacoes[abrev]);
   });
 
-  // 3. Localizar início do endereço
-  const regexEnd = /\b(RUA|AVENIDA|TRAVESSA|BECO|ALAMEDA|ESTRADA|RODOVIA|REPUBLICA)\s/i;
-  const match = textoExpandido.match(regexEnd);
-  
-  let nome = '', endereco = '';
-
-  if (match) {
-    const idx = match.index;
-    nome = limpo.substring(0, idx).trim();
-    endereco = limpo.substring(idx).trim();
-  } else {
-    // Fallback: divide na primeira vírgula
-    const partes = limpo.split(',');
-    nome = partes[0] || '';
-    endereco = partes.slice(1).join(',') || '';
-  }
-
-  // 4. Limpar nome (apenas letras, sem números)
-  nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
-  nome = nome.split(' ').filter(p => p.length >= 2).join(' ');
-  if (!nome) {
-    const possiveisNomes = limpo.split(' ').filter(p => /^[A-ZÀ-Ú]+$/i.test(p) && p.length > 2);
-    nome = possiveisNomes.slice(0, 3).join(' ');
-  }
-
-  // 5. Limpar endereço (corte cirúrgico no número)
-  // Remove tudo que vem depois do número, incluindo o próprio bairro
+  // Agora corta no número
   const regexNumero = /\b\d{1,5}\b/;
-  const matchNum = endereco.match(regexNumero);
+  const matchNum = enderecoBruto.match(regexNumero);
+  let enderecoFinal = '';
+
   if (matchNum) {
-    // Pega do início até o fim do número (incluindo o número)
     const posFim = matchNum.index + matchNum[0].length;
-    endereco = endereco.substring(0, posFim).trim();
-    // Remove vírgula ou ponto que possa ter ficado grudado no final
-    endereco = endereco.replace(/[,.]+$/g, '');
+    enderecoFinal = enderecoBruto.substring(0, posFim).trim();
+    enderecoFinal = enderecoFinal.replace(/[,.]+$/g, ''); // remove vírgula/ponto final
   } else {
-    // Se não tem número, pega só o que parece ser nome da rua (antes de qualquer vírgula)
-    endereco = endereco.split(',')[0].trim();
+    // Sem número: pega o que parece ser só o logradouro
+    const matchFallback = textoExpandido.match(/\b(RUA|AVENIDA|TRAVESSA|BECO|ALAMEDA|ESTRADA|RODOVIA)\s.+?(?=\s+\d{1,5}|$)/i);
+    if (matchFallback) {
+      enderecoFinal = matchFallback[0].trim();
+    } else {
+      enderecoFinal = enderecoBruto.split(',')[0].trim();
+    }
   }
 
   // Remove CEPs e espaços extras
-  endereco = endereco.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
+  enderecoFinal = enderecoFinal.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
 
-  // Última verificação: se o endereço ainda tiver mais de 6 palavras, corta depois do número (segurança extra)
-  if (endereco.split(' ').length > 6) {
-    const numMatch2 = endereco.match(regexNumero);
-    if (numMatch2) {
-      endereco = endereco.substring(0, numMatch2.index + numMatch2[0].length).trim();
-    }
-  }
-
-  if (!endereco) {
-    const matchFallback = textoExpandido.match(/\b(RUA|AVENIDA|TRAVESSA|BECO|ALAMEDA|ESTRADA|RODOVIA)\s.+?(?=\s+\d{1,5}|$)/i);
-    if (matchFallback) {
-      endereco = matchFallback[0].trim();
-    }
-  }
+  console.log('Nome:', nome);
+  console.log('Endereço:', enderecoFinal);
 
   return {
     nome: nome.toUpperCase(),
-    endereco: endereco.toUpperCase()
+    endereco: enderecoFinal.toUpperCase()
   };
 }
 
 // ==============================
-// ESCANEAR CARTÃO
+// ESCANEAR CARTÃO (com delay e freeze)
 // ==============================
 capturarBtn.addEventListener('click', async () => {
   if (!cameraPronta) return;
 
   capturarBtn.disabled = true;
-  capturarBtn.textContent = '⏳ Processando...';
+  capturarBtn.textContent = '⏳ Capturando...';
 
   try {
+    // Pequeno delay para estabilizar o foco
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Congela o frame atual (desenha o vídeo no canvas)
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+    // Pré-processamento
     const imagemProcessada = preProcessarImagem(canvas);
-    const textoBruto = await realizarOCR(imagemProcessada);
-    console.log('OCR:', textoBruto);
 
+    // OCR
+    const textoBruto = await realizarOCR(imagemProcessada);
+
+    // Extrair dados
     const { nome, endereco } = extrairDados(textoBruto);
 
+    // Exibir resultado
     const nomeInput = document.getElementById('nome');
     const enderecoInput = document.getElementById('endereco');
     const msgOCR = document.getElementById('mensagemOCR');
@@ -301,7 +281,7 @@ capturarBtn.addEventListener('click', async () => {
       nomeInput.readOnly = false;
       enderecoInput.readOnly = false;
       msgOCR.style.display = 'block';
-      msgOCR.textContent = '⚠️ Texto não reconhecido. Digite os dados manualmente.';
+      msgOCR.textContent = '⚠️ Não reconhecido. Digite manualmente.';
       nomeInput.focus();
     } else {
       nomeInput.readOnly = true;
