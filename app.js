@@ -135,56 +135,87 @@ document.getElementById('limparListaBtn').addEventListener('click', () => {
 // ================== FUNÇÕES ==================
 
 function processarTexto(texto) {
-  const linhasOriginais = texto
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 1);
-  
-  const prefixosRua = [
-    'RUA', 'R ', 'AVENIDA', 'AV ', 'AV.', 'TRAVESSA', 'TRAV.', 'TRAV',
-    'PRACA', 'PRAÇA', 'ALAMEDA', 'AL ', 'ESTRADA', 'ESTR.', 'RODOVIA', 'ROD.',
-    'BECO', 'BEC ', 'LARGO', 'LGO', 'VIELA', 'VLA'
-  ];
-  
-  const regexNumero = /,\s*\d+|\s+\d+\s*$|^\d+\s/;
-  let indiceInicioEndereco = -1;
-  
-  for (let i = 0; i < linhasOriginais.length; i++) {
-    const linhaUpper = linhasOriginais[i].toUpperCase().replace(/[^A-Z\s]/g, '');
-    if (prefixosRua.some(prefixo => linhaUpper.startsWith(prefixo + ' ') || linhaUpper === prefixo)) {
-      indiceInicioEndereco = i;
-      break;
-    }
-  }
-  
-  let nome = '', endereco = '';
-  
-  if (indiceInicioEndereco === -1) {
-    // Fallback simples
-    if (linhasOriginais.length >= 2) {
-      nome = linhasOriginais[0].toUpperCase();
-      endereco = linhasOriginais.slice(1).join(', ').toUpperCase();
-    } else if (linhasOriginais.length === 1) {
-      nome = linhasOriginais[0].toUpperCase();
-    }
-  } else {
-    const linhasNome = linhasOriginais.slice(0, indiceInicioEndereco);
-    nome = linhasNome.join(' ').toUpperCase().trim();
-    endereco = linhasOriginais[indiceInicioEndereco].trim().toUpperCase();
-    
-    if (indiceInicioEndereco + 1 < linhasOriginais.length) {
-      const linhaSeguinte = linhasOriginais[indiceInicioEndereco + 1].trim();
-      if (regexNumero.test(linhaSeguinte) || /^\d+$/.test(linhaSeguinte)) {
-        endereco += ', ' + linhaSeguinte;
-      }
-    }
-  }
-  
-  document.getElementById('nome').value = nome;
-  document.getElementById('endereco').value = endereco;
-  document.getElementById('resultado').style.display = 'block';
-}
 
+  console.log("OCR ORIGINAL:");
+  console.log(texto);
+
+  // =============================
+  // LIMPEZA OCR
+  // =============================
+
+  texto = texto
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/REMETENTE.*$/i, '')
+    .replace(/DESTINATÁRIO/i, '')
+    .trim();
+
+  console.log("OCR LIMPO:");
+  console.log(texto);
+
+  // =============================
+  // PADRÕES DE RUA
+  // =============================
+
+  const regexEndereco =
+    /\b(RUA|R |AVENIDA|AV |ESTRADA|TRAVESSA|ALAMEDA|REPUBLICA|RODOVIA)\b/i;
+
+  let nome = '';
+  let endereco = '';
+
+  // =============================
+  // LOCALIZA INÍCIO ENDEREÇO
+  // =============================
+
+  const matchEndereco = texto.search(regexEndereco);
+
+  if (matchEndereco !== -1) {
+
+    nome = texto.substring(0, matchEndereco).trim();
+
+    endereco = texto.substring(matchEndereco).trim();
+
+  } else {
+
+    // fallback simples
+    const partes = texto.split(',');
+
+    nome = partes[0] || '';
+    endereco = partes.slice(1).join(',') || '';
+  }
+
+  // =============================
+  // LIMPEZA FINAL
+  // =============================
+
+  nome = nome
+    .replace(/[,.-]+$/g, '')
+    .trim();
+
+  endereco = endereco
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // =============================
+  // REMOVE LIXO
+  // =============================
+
+  endereco = endereco
+    .replace(/^[,.-\s]+/, '')
+    .trim();
+
+  // =============================
+  // MOSTRAR RESULTADO
+  // =============================
+
+  console.log("NOME:", nome);
+  console.log("ENDEREÇO:", endereco);
+
+  document.getElementById('nome').value = nome.toUpperCase();
+
+  document.getElementById('endereco').value = endereco.toUpperCase();
+
+  document.getElementById('resultado').style.display = 'block';
 function atualizarListaVisual() {
   const listaUl = document.getElementById('itensLista');
   const contadorSpan = document.getElementById('contadorLista');
