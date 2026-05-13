@@ -1,251 +1,772 @@
 // ==============================
 // CONFIGURAÇÕES
 // ==============================
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
-const GEMINI_API_KEY = 'AIzaSyDC0P69uLJ5LzLVsFDCiHfQ8S-3Lywrxqw'; // Cole aqui sua chave do Google AI Studio
+const WEBAPP_URL =
+  'https://script.google.com/macros/s/AKfycbySC212AZVv5Whw-pPCmmUqwDfZGDQqw-Tlds8VBi8metYtDk-IqRF-jQj4TTXfshIdmg/exec';
 
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const capturarBtn = document.getElementById('capturarBtn');
-const iniciarCameraBtn = document.getElementById('iniciarCameraBtn');
+const GEMINI_API_KEY =
+  'SUA_CHAVE_AQUI';
+
+// ==============================
+// ELEMENTOS
+// ==============================
+const video =
+  document.getElementById('video');
+
+const canvas =
+  document.getElementById('canvas');
+
+const ctx =
+  canvas.getContext('2d');
+
+const capturarBtn =
+  document.getElementById('capturarBtn');
+
+const iniciarCameraBtn =
+  document.getElementById('iniciarCameraBtn');
 
 let listaEntregas = [];
+
 let cameraPronta = false;
 
 // ==============================
-// INICIAR CÂMERA (automática)
+// INICIAR CAMERA
 // ==============================
 async function tentarIniciarCamera() {
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      },
-      audio: false
-    });
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+
+        video: {
+
+          facingMode: {
+            ideal: 'environment'
+          },
+
+          width: {
+            ideal: 1920
+          },
+
+          height: {
+            ideal: 1080
+          }
+        },
+
+        audio: false
+      });
+
     video.srcObject = stream;
+
     await new Promise(resolve => {
-      video.onloadedmetadata = () => resolve();
-      if (video.readyState >= 2) resolve();
+
+      video.onloadedmetadata =
+        () => resolve();
+
+      if (video.readyState >= 2)
+        resolve();
     });
+
     await video.play();
+
+    // melhora visual
+    video.style.filter =
+      'contrast(140%) brightness(110%) grayscale(100%)';
+
     definirCameraPronta(true);
+
   } catch (err) {
+
     console.error(err);
+
     definirCameraPronta(false);
-    iniciarCameraBtn.style.display = 'block';
+
+    iniciarCameraBtn.style.display =
+      'block';
+
     capturarBtn.disabled = false;
-    capturarBtn.textContent = '📷 Permitir câmera';
+
+    capturarBtn.textContent =
+      '📷 Permitir câmera';
   }
 }
 
 function definirCameraPronta(pronto) {
+
   cameraPronta = pronto;
+
   if (pronto) {
+
     capturarBtn.disabled = false;
-    capturarBtn.textContent = '📷 Escanear Cartão';
-    iniciarCameraBtn.style.display = 'none';
+
+    capturarBtn.textContent =
+      '📷 Escanear Cartão';
+
+    iniciarCameraBtn.style.display =
+      'none';
+
   } else {
+
     capturarBtn.disabled = true;
-    capturarBtn.textContent = '🔒 Câmera não iniciada';
+
+    capturarBtn.textContent =
+      '🔒 Câmera não iniciada';
   }
 }
 
 async function iniciarCameraManual() {
-  iniciarCameraBtn.style.display = 'none';
+
+  iniciarCameraBtn.style.display =
+    'none';
+
   capturarBtn.disabled = true;
-  capturarBtn.textContent = '⏳ Iniciando câmera...';
+
+  capturarBtn.textContent =
+    '⏳ Iniciando câmera...';
+
   await tentarIniciarCamera();
 }
 
-iniciarCameraBtn.addEventListener('click', iniciarCameraManual);
-document.getElementById('data').value = new Date().toLocaleDateString('pt-BR');
+iniciarCameraBtn.addEventListener(
+  'click',
+  iniciarCameraManual
+);
 
 // ==============================
-// CHAMADA À API GEMINI
+// DATA
 // ==============================
-async function extrairComGemini(imagemBase64) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+document.getElementById('data').value =
+  new Date().toLocaleDateString('pt-BR');
+
+// ==============================
+// MELHORAR IMAGEM
+// ==============================
+function melhorarImagem() {
+
+  const imageData =
+    ctx.getImageData(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+  const data =
+    imageData.data;
+
+  for (
+    let i = 0;
+    i < data.length;
+    i += 4
+  ) {
+
+    const media =
+      (
+        data[i] +
+        data[i + 1] +
+        data[i + 2]
+      ) / 3;
+
+    const valor =
+      media > 150
+        ? 255
+        : 0;
+
+    data[i] = valor;
+    data[i + 1] = valor;
+    data[i + 2] = valor;
+  }
+
+  ctx.putImageData(
+    imageData,
+    0,
+    0
+  );
+}
+
+// ==============================
+// GEMINI
+// ==============================
+async function extrairComGemini(
+  imagemBase64
+) {
+
+  const url =
+    `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
   const payload = {
+
     contents: [{
+
       parts: [
+
         {
-          text: "Extraia da imagem do cartão APENAS o nome completo da pessoa e o endereço (somente nome da rua e número, sem bairro, cidade, CEP). Retorne EXCLUSIVAMENTE um JSON válido com as chaves 'nome' e 'endereco'. Exemplo: {\"nome\": \"JOAO SILVA\", \"endereco\": \"RUA DAS FLORES 123\"}. Se não conseguir ler, retorne {\"nome\": \"\", \"endereco\": \"\"}."
+
+          text:
+            `Leia este cartão brasileiro.
+
+Extraia SOMENTE:
+- nome completo da pessoa
+- rua + número
+
+IGNORE:
+- bairro
+- cidade
+- CEP
+- estado
+- textos laterais
+
+Retorne APENAS JSON válido.
+
+Exemplo:
+{
+  "nome": "LUCIANA ALVES LOPES",
+  "endereco": "RUA SAO PAULO 12"
+}
+
+Se não conseguir:
+{
+  "nome": "",
+  "endereco": ""
+}`
         },
+
         {
-          inline_data: {
-            mime_type: "image/jpeg",
-            data: imagemBase64
+
+          inlineData: {
+
+            mimeType:
+              'image/jpeg',
+
+            data:
+              imagemBase64
           }
         }
       ]
     }]
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const response =
+    await fetch(url, {
+
+      method: 'POST',
+
+      headers: {
+        'Content-Type':
+          'application/json'
+      },
+
+      body:
+        JSON.stringify(payload)
+    });
 
   if (!response.ok) {
-    const erro = await response.text();
-    throw new Error(`Erro ${response.status}: ${erro}`);
+
+    const erro =
+      await response.text();
+
+    throw new Error(
+      erro
+    );
   }
 
-  const data = await response.json();
-  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || '{"nome":"","endereco":""}';
-  const jsonLimpo = texto.replace(/```json|```/g, '').trim();
-  return JSON.parse(jsonLimpo);
+  const data =
+    await response.json();
+
+  console.log(
+    'RESPOSTA GEMINI'
+  );
+
+  console.log(data);
+
+  const texto =
+    data?.candidates?.[0]?.content?.parts?.[0]?.text
+    || '{"nome":"","endereco":""}';
+
+  const jsonLimpo =
+    texto
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
+
+  return JSON.parse(
+    jsonLimpo
+  );
 }
 
 // ==============================
-// ESCANEAR CARTÃO
+// ESCANEAR
 // ==============================
-capturarBtn.addEventListener('click', async () => {
-  if (!cameraPronta) return;
+capturarBtn.addEventListener(
+  'click',
+  async () => {
 
-  capturarBtn.disabled = true;
-  capturarBtn.textContent = '⏳ Consultando IA...';
+    if (!cameraPronta)
+      return;
 
-  try {
-    // Pausa para estabilizar
-    await new Promise(resolve => setTimeout(resolve, 500));
+    capturarBtn.disabled =
+      true;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    capturarBtn.textContent =
+      '⏳ Consultando IA...';
 
-    // Converte para JPEG base64 (sem cabeçalho)
-    const imagemBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+    try {
 
-    const resultado = await extrairComGemini(imagemBase64);
-    console.log('Resultado IA:', resultado);
+      // espera foco estabilizar
+      await new Promise(resolve =>
+        setTimeout(resolve, 500)
+      );
 
-    document.getElementById('nome').value = (resultado.nome || '').toUpperCase();
-    document.getElementById('endereco').value = (resultado.endereco || '').toUpperCase();
-    document.getElementById('resultado').style.display = 'block';
+      // captura
+      canvas.width =
+        video.videoWidth;
 
-    // Sempre permite edição manual como fallback
-    document.getElementById('nome').readOnly = false;
-    document.getElementById('endereco').readOnly = false;
+      canvas.height =
+        video.videoHeight;
 
-    if (!resultado.nome && !resultado.endereco) {
-      mostrarStatus('⚠️ IA não leu. Digite os dados.', 'erro');
-    } else {
-      mostrarStatus('✅ Leitura concluída!', 'sucesso');
+      ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      // melhora imagem
+      melhorarImagem();
+
+      // transforma base64
+      const imagemBase64 =
+        canvas
+          .toDataURL(
+            'image/jpeg',
+            0.9
+          )
+          .split(',')[1];
+
+      // chama IA
+      const resultado =
+        await extrairComGemini(
+          imagemBase64
+        );
+
+      console.log(
+        'RESULTADO IA'
+      );
+
+      console.log(
+        resultado
+      );
+
+      // limpa resultado
+      let nome =
+        (resultado.nome || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      let endereco =
+        (resultado.endereco || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      // campos
+      document.getElementById(
+        'nome'
+      ).value =
+        nome.toUpperCase();
+
+      document.getElementById(
+        'endereco'
+      ).value =
+        endereco.toUpperCase();
+
+      document.getElementById(
+        'resultado'
+      ).style.display =
+        'block';
+
+      // permite edição manual
+      document.getElementById(
+        'nome'
+      ).readOnly = false;
+
+      document.getElementById(
+        'endereco'
+      ).readOnly = false;
+
+      if (
+        !nome &&
+        !endereco
+      ) {
+
+        mostrarStatus(
+          '⚠️ IA não conseguiu ler',
+          'erro'
+        );
+
+      } else {
+
+        mostrarStatus(
+          '✅ Cartão lido com IA',
+          'sucesso'
+        );
+      }
+
+    } catch (err) {
+
+      console.error(err);
+
+      alert(
+        'Erro IA: ' +
+        err.message
+      );
     }
-  } catch (err) {
-    console.error(err);
-    alert('Erro na IA: ' + err.message);
+
+    capturarBtn.disabled =
+      false;
+
+    capturarBtn.textContent =
+      '📷 Escanear Cartão';
   }
-
-  capturarBtn.disabled = false;
-  capturarBtn.textContent = '📷 Escanear Cartão';
-});
+);
 
 // ==============================
-// ADICIONAR À LISTA (mantido)
+// ADICIONAR
 // ==============================
-document.getElementById('adicionarBtn').addEventListener('click', () => {
-  const nome = document.getElementById('nome').value.trim();
-  const endereco = document.getElementById('endereco').value.trim();
-  if (!nome || !endereco) { alert('Nome e endereço obrigatórios'); return; }
+document.getElementById(
+  'adicionarBtn'
+).addEventListener(
+  'click',
+  () => {
 
-  listaEntregas.push({
-    nome,
-    endereco,
-    quantidade: document.getElementById('quantidade').value,
-    tipo: document.getElementById('tipo').value,
-    numero: document.getElementById('numero').value,
-    obs: document.getElementById('obs').value,
-    telefone: document.getElementById('telefone').value,
-    data: document.getElementById('data').value
-  });
+    const nome =
+      document.getElementById(
+        'nome'
+      ).value.trim();
 
-  atualizarListaVisual();
-  document.getElementById('resultado').style.display = 'none';
-  document.getElementById('nome').value = '';
-  document.getElementById('endereco').value = '';
-});
+    const endereco =
+      document.getElementById(
+        'endereco'
+      ).value.trim();
 
-document.getElementById('escanearOutroBtn').addEventListener('click', () => {
-  document.getElementById('resultado').style.display = 'none';
-  document.getElementById('nome').value = '';
-  document.getElementById('endereco').value = '';
-});
+    if (
+      !nome ||
+      !endereco
+    ) {
 
-// ==============================
-// ENVIAR TUDO
-// ==============================
-document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
-  if (listaEntregas.length === 0) { alert('Nenhum cartão.'); return; }
-  mostrarStatus('Enviando...', '');
+      alert(
+        'Nome e endereço obrigatórios'
+      );
 
-  try {
-    const resposta = await fetch(WEBAPP_URL, {
-      method: 'POST',
-      body: JSON.stringify(listaEntregas),
-      headers: { 'Content-Type': 'application/json' }
+      return;
+    }
+
+    listaEntregas.push({
+
+      nome,
+      endereco,
+
+      quantidade:
+        document.getElementById(
+          'quantidade'
+        ).value,
+
+      tipo:
+        document.getElementById(
+          'tipo'
+        ).value,
+
+      numero:
+        document.getElementById(
+          'numero'
+        ).value,
+
+      obs:
+        document.getElementById(
+          'obs'
+        ).value,
+
+      telefone:
+        document.getElementById(
+          'telefone'
+        ).value,
+
+      data:
+        document.getElementById(
+          'data'
+        ).value
     });
-    const resultado = await resposta.json();
-    if (resultado.success) {
-      mostrarStatus('✅ ' + resultado.message, 'sucesso');
-      listaEntregas = [];
-      atualizarListaVisual();
-    } else {
-      mostrarStatus('❌ ' + resultado.message, 'erro');
-    }
-  } catch (err) {
-    console.error(err);
-    mostrarStatus('❌ Falha conexão', 'erro');
-  }
-});
 
-document.getElementById('limparListaBtn').addEventListener('click', () => {
-  if (listaEntregas.length === 0) { alert('Lista vazia.'); return; }
-  if (confirm('Apagar todos os cartões?')) {
-    listaEntregas = [];
     atualizarListaVisual();
+
+    document.getElementById(
+      'resultado'
+    ).style.display =
+      'none';
+
+    document.getElementById(
+      'nome'
+    ).value = '';
+
+    document.getElementById(
+      'endereco'
+    ).value = '';
   }
-});
+);
 
+// ==============================
+// ESCANEAR OUTRO
+// ==============================
+document.getElementById(
+  'escanearOutroBtn'
+).addEventListener(
+  'click',
+  () => {
+
+    document.getElementById(
+      'resultado'
+    ).style.display =
+      'none';
+
+    document.getElementById(
+      'nome'
+    ).value = '';
+
+    document.getElementById(
+      'endereco'
+    ).value = '';
+  }
+);
+
+// ==============================
+// ENVIAR
+// ==============================
+document.getElementById(
+  'enviarTudoBtn'
+).addEventListener(
+  'click',
+  async () => {
+
+    if (
+      listaEntregas.length === 0
+    ) {
+
+      alert(
+        'Nenhum cartão.'
+      );
+
+      return;
+    }
+
+    mostrarStatus(
+      'Enviando...',
+      ''
+    );
+
+    try {
+
+      const resposta =
+        await fetch(
+          WEBAPP_URL,
+          {
+
+            method: 'POST',
+
+            body:
+              JSON.stringify(
+                listaEntregas
+              ),
+
+            headers: {
+              'Content-Type':
+                'application/json'
+            }
+          }
+        );
+
+      const resultado =
+        await resposta.json();
+
+      if (
+        resultado.success
+      ) {
+
+        mostrarStatus(
+          '✅ ' +
+          resultado.message,
+          'sucesso'
+        );
+
+        listaEntregas = [];
+
+        atualizarListaVisual();
+
+      } else {
+
+        mostrarStatus(
+          '❌ ' +
+          resultado.message,
+          'erro'
+        );
+      }
+
+    } catch (err) {
+
+      console.error(err);
+
+      mostrarStatus(
+        '❌ Falha conexão',
+        'erro'
+      );
+    }
+  }
+);
+
+// ==============================
+// LIMPAR
+// ==============================
+document.getElementById(
+  'limparListaBtn'
+).addEventListener(
+  'click',
+  () => {
+
+    if (
+      listaEntregas.length === 0
+    ) {
+
+      alert(
+        'Lista vazia.'
+      );
+
+      return;
+    }
+
+    if (
+      confirm(
+        'Apagar todos os cartões?'
+      )
+    ) {
+
+      listaEntregas = [];
+
+      atualizarListaVisual();
+    }
+  }
+);
+
+// ==============================
+// LISTA VISUAL
+// ==============================
 function atualizarListaVisual() {
-  const listaUl = document.getElementById('itensLista');
-  const contador = document.getElementById('contadorLista');
-  const div = document.getElementById('listaAcumulada');
 
-  contador.textContent = listaEntregas.length;
-  if (listaEntregas.length === 0) { div.style.display = 'none'; return; }
-  div.style.display = 'block';
+  const listaUl =
+    document.getElementById(
+      'itensLista'
+    );
+
+  const contador =
+    document.getElementById(
+      'contadorLista'
+    );
+
+  const div =
+    document.getElementById(
+      'listaAcumulada'
+    );
+
+  contador.textContent =
+    listaEntregas.length;
+
+  if (
+    listaEntregas.length === 0
+  ) {
+
+    div.style.display =
+      'none';
+
+    return;
+  }
+
+  div.style.display =
+    'block';
+
   listaUl.innerHTML = '';
 
-  listaEntregas.forEach((item, index) => {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <span style="flex:1;">
-        <strong>${item.nome}</strong><br>${item.endereco}
-      </span>
-      <button onclick="removerItem(${index})">❌</button>
-    `;
-    listaUl.appendChild(li);
-  });
+  listaEntregas.forEach(
+    (item, index) => {
+
+      const li =
+        document.createElement(
+          'li'
+        );
+
+      li.innerHTML = `
+        <span style="flex:1;">
+          <strong>${item.nome}</strong>
+          <br>
+          ${item.endereco}
+        </span>
+
+        <button onclick="removerItem(${index})">
+          ❌
+        </button>
+      `;
+
+      listaUl.appendChild(
+        li
+      );
+    }
+  );
 }
 
-function removerItem(indice) {
-  listaEntregas.splice(indice, 1);
+// ==============================
+// REMOVER
+// ==============================
+function removerItem(
+  indice
+) {
+
+  listaEntregas.splice(
+    indice,
+    1
+  );
+
   atualizarListaVisual();
 }
 
-function mostrarStatus(msg, classe) {
-  const status = document.getElementById('status');
-  status.textContent = msg;
-  status.className = 'status ' + classe;
-  setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
+// ==============================
+// STATUS
+// ==============================
+function mostrarStatus(
+  msg,
+  classe
+) {
+
+  const status =
+    document.getElementById(
+      'status'
+    );
+
+  status.textContent =
+    msg;
+
+  status.className =
+    'status ' + classe;
+
+  setTimeout(() => {
+
+    status.textContent =
+      '';
+
+    status.className =
+      'status';
+
+  }, 4000);
 }
 
+// ==============================
+// INICIAR
+// ==============================
 tentarIniciarCamera();
