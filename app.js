@@ -1,4 +1,4 @@
-// SUBSTITUA PELA URL DO SEU WEB APP ATUALIZADO
+// SUBSTITUA PELA URL DO SEU WEB APP
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxIpvslimlUoi7IBcZWxdpufNyIaF6CwpzSQyA0dS16QYU2j6RF77FIflhGZv_3dTgF0w/exec';
 
 // ==============================
@@ -12,91 +12,103 @@ const capturarBtn = document.getElementById('capturarBtn');
 const iniciarCameraBtn = document.getElementById('iniciarCameraBtn');
 
 let listaEntregas = [];
-let streamAtivo = null;
 let cameraPronta = false;
 
 // ==============================
-// INICIAR CÂMERA
+// INICIAR CAMERA
 // ==============================
 async function tentarIniciarCamera() {
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      },
-      audio: false
-    });
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+
+        video: {
+          facingMode: { ideal: 'environment' },
+
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+
+        audio: false
+      });
 
     video.srcObject = stream;
-    streamAtivo = stream;
 
     await new Promise((resolve) => {
+
       video.onloadedmetadata = () => resolve();
+
       if (video.readyState >= 2) resolve();
     });
 
     await video.play();
 
-    // MELHORA VISUAL
-    video.style.filter = 'contrast(140%) brightness(110%)';
-
-    console.log('Câmera iniciada com sucesso');
+    // melhora visual
+    video.style.filter =
+      'contrast(140%) brightness(110%)';
 
     definirCameraPronta(true);
 
-  } catch (erro) {
-    console.warn('Erro câmera:', erro.message);
+    console.log('Câmera iniciada');
+
+  } catch (err) {
+
+    console.error(err);
 
     definirCameraPronta(false);
 
     iniciarCameraBtn.style.display = 'block';
 
-    capturarBtn.textContent = '📷 Permitir Câmera';
     capturarBtn.disabled = false;
+
+    capturarBtn.textContent =
+      '📷 Permitir câmera';
   }
 }
 
 function definirCameraPronta(pronto) {
+
   cameraPronta = pronto;
 
   if (pronto) {
-    capturarBtn.textContent = '📷 Escanear Cartão';
+
     capturarBtn.disabled = false;
+
+    capturarBtn.textContent =
+      '📷 Escanear Cartão';
+
     iniciarCameraBtn.style.display = 'none';
+
   } else {
-    capturarBtn.textContent = '🔒 Câmera não iniciada';
+
     capturarBtn.disabled = true;
+
+    capturarBtn.textContent =
+      '🔒 Câmera não iniciada';
   }
 }
 
 async function iniciarCameraManual() {
+
   iniciarCameraBtn.style.display = 'none';
 
-  capturarBtn.textContent = '⏳ Solicitando câmera...';
   capturarBtn.disabled = true;
+
+  capturarBtn.textContent =
+    '⏳ Iniciando câmera...';
 
   await tentarIniciarCamera();
 }
 
-iniciarCameraBtn.addEventListener('click', iniciarCameraManual);
-
-capturarBtn.addEventListener('click', async (e) => {
-  if (!cameraPronta) {
-    e.preventDefault();
-
-    await iniciarCameraManual();
-
-    if (!cameraPronta) {
-      alert('Permita acesso à câmera.');
-      return;
-    }
-  }
-});
+iniciarCameraBtn.addEventListener(
+  'click',
+  iniciarCameraManual
+);
 
 // ==============================
-// DATA AUTOMÁTICA
+// DATA
 // ==============================
 document.getElementById('data').value =
   new Date().toLocaleDateString('pt-BR');
@@ -104,346 +116,413 @@ document.getElementById('data').value =
 // ==============================
 // ESCANEAR
 // ==============================
-capturarBtn.addEventListener('click', async () => {
+capturarBtn.addEventListener(
+  'click',
+  async () => {
 
-  if (!cameraPronta) return;
+    if (!cameraPronta) return;
 
-  if (!video.videoWidth) {
-    alert('A câmera ainda está carregando.');
-    return;
-  }
+    capturarBtn.disabled = true;
 
-  capturarBtn.disabled = true;
-  capturarBtn.textContent = '⏳ Lendo cartão...';
+    capturarBtn.textContent =
+      '⏳ Escaneando...';
 
-  try {
+    try {
 
-    // estabilização
-    await new Promise(resolve => setTimeout(resolve, 400));
+      // estabilização
+      await new Promise(resolve =>
+        setTimeout(resolve, 500)
+      );
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+      // ==========================
+      // CAPTURA ORIGINAL
+      // ==========================
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    // captura imagem
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
 
-    // ==========================
-    // MELHORIA OCR
-    // ==========================
-    const frame = ctx.getImageData(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+      // ==================================================
+      // RECORTE DO NOME
+      // ==================================================
 
-    const data = frame.data;
+      // ÁREA SUPERIOR ESQUERDA
+      const nomeX = 0;
+      const nomeY = canvas.height * 0.03;
 
-    for (let i = 0; i < data.length; i += 4) {
+      const nomeW = canvas.width * 0.75;
+      const nomeH = canvas.height * 0.18;
 
-      const media =
-        (data[i] + data[i + 1] + data[i + 2]) / 3;
+      // canvas auxiliar
+      const nomeCanvas =
+        document.createElement('canvas');
 
-      // contraste pesado
-      const valor = media > 150 ? 255 : 0;
+      const nomeCtx =
+        nomeCanvas.getContext('2d');
 
-      data[i] = valor;
-      data[i + 1] = valor;
-      data[i + 2] = valor;
+      nomeCanvas.width = nomeW;
+      nomeCanvas.height = nomeH;
+
+      nomeCtx.drawImage(
+        canvas,
+        nomeX,
+        nomeY,
+        nomeW,
+        nomeH,
+        0,
+        0,
+        nomeW,
+        nomeH
+      );
+
+      // ==================================================
+      // MELHORA OCR
+      // ==================================================
+      const frame =
+        nomeCtx.getImageData(
+          0,
+          0,
+          nomeW,
+          nomeH
+        );
+
+      const data = frame.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+
+        const media =
+          (
+            data[i] +
+            data[i + 1] +
+            data[i + 2]
+          ) / 3;
+
+        const valor =
+          media > 160 ? 255 : 0;
+
+        data[i] = valor;
+        data[i + 1] = valor;
+        data[i + 2] = valor;
+      }
+
+      nomeCtx.putImageData(frame, 0, 0);
+
+      // ==================================================
+      // IMAGEM FINAL
+      // ==================================================
+      const imageData =
+        nomeCanvas.toDataURL('image/png');
+
+      // ==================================================
+      // OCR
+      // ==================================================
+      const worker =
+        await Tesseract.createWorker('por');
+
+      await worker.setParameters({
+
+        tessedit_pageseg_mode:
+          Tesseract.PSM.SINGLE_LINE,
+
+        tessedit_char_whitelist:
+          'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÉÊÍÓÔÕÚÇàáâãéêíóôõúç '
+
+      });
+
+      const {
+        data: { text }
+      } = await worker.recognize(imageData);
+
+      await worker.terminate();
+
+      console.log('OCR BRUTO:', text);
+
+      // ==================================================
+      // LIMPEZA NOME
+      // ==================================================
+      let nome = text
+        .replace(/\n/g, ' ')
+        .replace(/\|/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // pega possíveis nomes
+      const nomesProvaveis =
+        nome.match(
+          /\b[A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,}){1,6}\b/gi
+        );
+
+      if (
+        nomesProvaveis &&
+        nomesProvaveis.length > 0
+      ) {
+
+        nome =
+          nomesProvaveis.sort(
+            (a, b) =>
+              b.length - a.length
+          )[0];
+      }
+
+      // remove lixo comum
+      nome = nome
+        .replace(/\b(OO|IO|LO|OI)\b/g, '')
+        .replace(/\bRU\b/g, '')
+        .replace(/\bSS\b/g, '')
+        .replace(/\bAA\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // ==================================================
+      // ENDEREÇO
+      // ==================================================
+
+      // usa OCR completo pro endereço
+      const workerEndereco =
+        await Tesseract.createWorker('por');
+
+      const {
+        data: { text: textoEndereco }
+      } =
+        await workerEndereco.recognize(
+          canvas.toDataURL('image/png')
+        );
+
+      await workerEndereco.terminate();
+
+      let endereco = '';
+
+      const regexEndereco =
+        /(RUA|R\s|AV|AVENIDA|ESTRADA|TRAVESSA)\s.+?\d+/i;
+
+      const matchEndereco =
+        textoEndereco.match(regexEndereco);
+
+      if (matchEndereco) {
+
+        endereco =
+          matchEndereco[0];
+
+      } else {
+
+        endereco =
+          'ENDEREÇO NÃO ENCONTRADO';
+      }
+
+      endereco = endereco
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // ==================================================
+      // RESULTADO
+      // ==================================================
+      console.log('NOME FINAL:', nome);
+      console.log('ENDEREÇO FINAL:', endereco);
+
+      document.getElementById('nome').value =
+        nome.toUpperCase();
+
+      document.getElementById('endereco').value =
+        endereco.toUpperCase();
+
+      document.getElementById('resultado').style.display =
+        'block';
+
+    } catch (err) {
+
+      console.error(err);
+
+      alert(
+        'Erro no OCR: ' + err.message
+      );
     }
 
-    ctx.putImageData(frame, 0, 0);
+    capturarBtn.disabled = false;
 
-    const imageData = canvas.toDataURL('image/png');
-
-    // ==========================
-    // TESSERACT
-    // ==========================
-    const worker = await Tesseract.createWorker('por');
-
-    await worker.setParameters({
-
-      tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-
-      tessedit_char_whitelist:
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÉÊÍÓÔÕÚÇàáâãéêíóôõúç0123456789-.,/ '
-
-    });
-
-    const {
-      data: { text }
-    } = await worker.recognize(imageData);
-
-    await worker.terminate();
-
-    processarTexto(text);
-
-  } catch (err) {
-
-    console.error(err);
-
-    alert('Erro OCR: ' + err.message);
-
+    capturarBtn.textContent =
+      '📷 Escanear Cartão';
   }
-
-  capturarBtn.disabled = false;
-  capturarBtn.textContent = '📷 Escanear Cartão';
-
-});
+);
 
 // ==============================
-// PROCESSAR TEXTO
-// ==============================
-function processarTexto(texto) {
-
-  console.log('OCR ORIGINAL');
-  console.log(texto);
-
-  let limpo = texto
-    .replace(/\n/g, ' ')
-    .replace(/\|/g, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/DESTINATÁRIO/gi, '')
-    .replace(/REMETENTE/gi, '')
-    .trim();
-
-  console.log('OCR LIMPO');
-  console.log(limpo);
-
-  const regexEndereco =
-    /\b(RUA|R\s|AVENIDA|AV\s?|ESTRADA|TRAVESSA|ALAMEDA|REPUBLICA|RODOVIA|TRAV\.?|AL\.?|ESTR\.?|ROD\.?)\b/i;
-
-  let nome = '';
-  let enderecoBruto = '';
-
-  const inicioEndereco = limpo.search(regexEndereco);
-
-  if (inicioEndereco !== -1) {
-
-    nome = limpo.substring(0, inicioEndereco).trim();
-
-    enderecoBruto =
-      limpo.substring(inicioEndereco).trim();
-
-  } else {
-
-    const partes = limpo.split(',');
-
-    nome = (partes[0] || '').trim();
-
-    enderecoBruto =
-      partes.slice(1).join(',').trim();
-  }
-
-  // ==========================
-  // MELHOR EXTRAÇÃO NOME
-  // ==========================
-  const matchNome = nome.match(
-    /([A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,}){1,6})/i
-  );
-
-  if (matchNome) {
-    nome = matchNome[1];
-  }
-
-  // ==========================
-  // LIMPEZA NOME
-  // ==========================
-  nome = nome
-    .replace(/[,.-]+$/g, '')
-    .replace(/\s+\d+\s*$/g, '')
-    .replace(/\s+(SP|RJ|MG|ES|DF|CE)\b\.?$/i, '')
-    .replace(/\b\d{5}-\d{3}\b/g, '')
-    .trim();
-
-  // remove palavras pequenas
-  nome = nome
-    .split(' ')
-    .filter(p => p.length > 2)
-    .join(' ');
-
-  // remove lixo OCR
-  nome = nome.replace(/\b(OO|IO|LO|OI|0O|O0)\b/g, '');
-
-  // remove caracteres repetidos
-  nome = nome.replace(/\b([A-Z])\1+\b/g, '');
-
-  // espaços extras
-  nome = nome.replace(/\s+/g, ' ').trim();
-
-  // ==========================
-  // ENDEREÇO
-  // ==========================
-  let enderecoFinal = '';
-
-  const regexNumeroCasa = /\b\d{1,5}\b/;
-
-  const matchNum = enderecoBruto.match(regexNumeroCasa);
-
-  if (matchNum) {
-
-    const posNum =
-      matchNum.index + matchNum[0].length;
-
-    enderecoFinal =
-      enderecoBruto.substring(0, posNum).trim();
-
-    enderecoFinal =
-      enderecoFinal.replace(/[,.]\s*$/, '').trim();
-
-  } else {
-
-    const partesEnd = enderecoBruto.split(',');
-
-    enderecoFinal = partesEnd[0].trim();
-  }
-
-  enderecoFinal =
-    enderecoFinal
-      .replace(/\d{5}-\d{3}/g, '')
-      .replace(/[,.\s]+$/g, '')
-      .trim();
-
-  console.log('NOME FINAL:', nome);
-  console.log('ENDEREÇO FINAL:', enderecoFinal);
-
-  document.getElementById('nome').value =
-    nome.toUpperCase();
-
-  document.getElementById('endereco').value =
-    enderecoFinal.toUpperCase();
-
-  document.getElementById('resultado').style.display =
-    'block';
-}
-
-// ==============================
-// ADICIONAR À LISTA
+// ADICIONAR
 // ==============================
 document.getElementById('adicionarBtn')
-.addEventListener('click', () => {
+.addEventListener(
+  'click',
+  () => {
 
-  const nome =
-    document.getElementById('nome').value;
+    const nome =
+      document.getElementById('nome').value;
 
-  const endereco =
-    document.getElementById('endereco').value;
+    const endereco =
+      document.getElementById('endereco').value;
 
-  if (!nome || !endereco) {
-    alert('Nome e endereço obrigatórios');
-    return;
+    if (!nome || !endereco) {
+
+      alert(
+        'Nome e endereço obrigatórios'
+      );
+
+      return;
+    }
+
+    listaEntregas.push({
+
+      nome,
+      endereco,
+
+      quantidade:
+        document.getElementById('quantidade').value,
+
+      tipo:
+        document.getElementById('tipo').value,
+
+      numero:
+        document.getElementById('numero').value,
+
+      obs:
+        document.getElementById('obs').value,
+
+      telefone:
+        document.getElementById('telefone').value,
+
+      data:
+        document.getElementById('data').value
+    });
+
+    atualizarListaVisual();
+
+    document.getElementById('resultado').style.display =
+      'none';
+
+    document.getElementById('nome').value = '';
+
+    document.getElementById('endereco').value = '';
   }
-
-  listaEntregas.push({
-    nome,
-    endereco,
-    quantidade: document.getElementById('quantidade').value,
-    tipo: document.getElementById('tipo').value,
-    numero: document.getElementById('numero').value,
-    obs: document.getElementById('obs').value,
-    telefone: document.getElementById('telefone').value,
-    data: document.getElementById('data').value
-  });
-
-  atualizarListaVisual();
-
-  document.getElementById('resultado').style.display = 'none';
-
-  document.getElementById('nome').value = '';
-  document.getElementById('endereco').value = '';
-
-});
+);
 
 // ==============================
 // ESCANEAR OUTRO
 // ==============================
 document.getElementById('escanearOutroBtn')
-.addEventListener('click', () => {
+.addEventListener(
+  'click',
+  () => {
 
-  document.getElementById('resultado').style.display = 'none';
+    document.getElementById('resultado').style.display =
+      'none';
 
-  document.getElementById('nome').value = '';
+    document.getElementById('nome').value = '';
 
-  document.getElementById('endereco').value = '';
-
-});
+    document.getElementById('endereco').value = '';
+  }
+);
 
 // ==============================
 // ENVIAR TUDO
 // ==============================
 document.getElementById('enviarTudoBtn')
-.addEventListener('click', async () => {
+.addEventListener(
+  'click',
+  async () => {
 
-  if (listaEntregas.length === 0) {
-    alert('Nenhum cartão.');
-    return;
-  }
+    if (listaEntregas.length === 0) {
 
-  mostrarStatus(
-    'Enviando ' + listaEntregas.length + ' cartão(s)...',
-    ''
-  );
+      alert('Nenhum cartão.');
 
-  try {
+      return;
+    }
 
-    const resposta = await fetch(WEBAPP_URL, {
-      method: 'POST',
-      body: JSON.stringify(listaEntregas),
-      headers: {
-        'Content-Type': 'application/json'
+    mostrarStatus(
+      'Enviando...',
+      ''
+    );
+
+    try {
+
+      const resposta =
+        await fetch(WEBAPP_URL, {
+
+          method: 'POST',
+
+          body: JSON.stringify(
+            listaEntregas
+          ),
+
+          headers: {
+            'Content-Type':
+              'application/json'
+          }
+        });
+
+      const resultado =
+        await resposta.json();
+
+      if (resultado.success) {
+
+        mostrarStatus(
+          '✅ ' + resultado.message,
+          'sucesso'
+        );
+
+        listaEntregas = [];
+
+        atualizarListaVisual();
+
+      } else {
+
+        mostrarStatus(
+          '❌ ' + resultado.message,
+          'erro'
+        );
       }
-    });
 
-    const resultado = await resposta.json();
+    } catch (err) {
 
-    if (resultado.success) {
-
-      mostrarStatus(
-        '✅ ' + resultado.message,
-        'sucesso'
-      );
-
-      listaEntregas = [];
-
-      atualizarListaVisual();
-
-    } else {
+      console.error(err);
 
       mostrarStatus(
-        '❌ ' + resultado.message,
+        '❌ Erro conexão',
         'erro'
       );
     }
-
-  } catch (err) {
-
-    console.error(err);
-
-    mostrarStatus(
-      '❌ Falha na conexão',
-      'erro'
-    );
   }
-});
+);
 
 // ==============================
 // LIMPAR LISTA
 // ==============================
 document.getElementById('limparListaBtn')
-.addEventListener('click', () => {
+.addEventListener(
+  'click',
+  () => {
 
-  if (listaEntregas.length === 0) {
-    alert('Lista vazia.');
-    return;
+    if (listaEntregas.length === 0) {
+
+      alert('Lista vazia.');
+
+      return;
+    }
+
+    if (
+      confirm(
+        'Apagar todos os cartões?'
+      )
+    ) {
+
+      listaEntregas = [];
+
+      atualizarListaVisual();
+    }
   }
-
-  if (confirm('Apagar todos os cartões?')) {
-
-    listaEntregas = [];
-
-    atualizarListaVisual();
-  }
-});
+);
 
 // ==============================
 // LISTA VISUAL
@@ -459,7 +538,8 @@ function atualizarListaVisual() {
   const div =
     document.getElementById('listaAcumulada');
 
-  contador.textContent = listaEntregas.length;
+  contador.textContent =
+    listaEntregas.length;
 
   if (listaEntregas.length === 0) {
 
@@ -472,25 +552,27 @@ function atualizarListaVisual() {
 
   listaUl.innerHTML = '';
 
-  listaEntregas.forEach((item, index) => {
+  listaEntregas.forEach(
+    (item, index) => {
 
-    const li = document.createElement('li');
+      const li =
+        document.createElement('li');
 
-    li.innerHTML = `
-      <span style="flex:1;">
-        <strong>${item.nome}</strong>
-        <br>
-        ${item.endereco}
-      </span>
+      li.innerHTML = `
+        <span style="flex:1;">
+          <strong>${item.nome}</strong>
+          <br>
+          ${item.endereco}
+        </span>
 
-      <button onclick="removerItem(${index})">
-        ❌
-      </button>
-    `;
+        <button onclick="removerItem(${index})">
+          ❌
+        </button>
+      `;
 
-    listaUl.appendChild(li);
-
-  });
+      listaUl.appendChild(li);
+    }
+  );
 }
 
 // ==============================
@@ -498,16 +580,21 @@ function atualizarListaVisual() {
 // ==============================
 function removerItem(indice) {
 
-  listaEntregas.splice(indice, 1);
+  listaEntregas.splice(
+    indice,
+    1
+  );
 
   atualizarListaVisual();
-
 }
 
 // ==============================
 // STATUS
 // ==============================
-function mostrarStatus(msg, classe) {
+function mostrarStatus(
+  msg,
+  classe
+) {
 
   const status =
     document.getElementById('status');
