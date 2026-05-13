@@ -12,12 +12,13 @@
     
     <div class="camera-area">
       <video id="video" autoplay playsinline></video>
-      <button id="capturarBtn" class="btn">📷 Escanear Cartão</button>
-      <canvas id="canvas" style="display:none;"></canvas>
+      <button id="iniciarCameraBtn" class="btn">📷 Iniciar Câmera</button>
+      <button id="capturarBtn" class="btn" style="display: none;">📷 Escanear Cartão</button>
+      <canvas id="canvas" style="display: none;"></canvas>
     </div>
 
     <!-- Resultado do scan atual -->
-    <div id="resultado" class="resultado" style="display:none;">
+    <div id="resultado" class="resultado" style="display: none;">
       <h3>📋 Cartão escaneado</h3>
       <div class="campo">
         <label>Nome (ENTREGUE Á):</label>
@@ -34,7 +35,7 @@
     </div>
 
     <!-- Lista de cartões acumulados -->
-    <div id="listaAcumulada" style="display:none;">
+    <div id="listaAcumulada" style="display: none;">
       <h3>📌 Cartões na lista (<span id="contadorLista">0</span>)</h3>
       <ul id="itensLista"></ul>
       <div class="botoes">
