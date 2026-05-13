@@ -12,23 +12,8 @@
     
     <div class="camera-area">
       <video id="video" autoplay playsinline></video>
-      
-      <!-- Overlay de calibração (sempre visível quando câmera ativa) -->
-      <div id="overlayGuias" class="overlay-guias" style="display:none;">
-        <div class="guia guia-nome">
-          <span class="guia-label">NOME</span>
-        </div>
-        <div class="guia guia-endereco">
-          <span class="guia-label">ENDEREÇO</span>
-        </div>
-      </div>
-      
-      <!-- Fallback: só aparece se a câmera não iniciar sozinha -->
       <button id="iniciarCameraBtn" class="btn" style="display: none;">📷 Permitir Câmera</button>
-      
-      <!-- Botão de escanear sempre visível, mas inicia desabilitado -->
       <button id="capturarBtn" class="btn" disabled>🔒 Câmera não iniciada</button>
-      
       <canvas id="canvas" style="display: none;"></canvas>
     </div>
 
@@ -43,8 +28,14 @@
         <label>Endereço:</label>
         <input type="text" id="endereco" readonly>
       </div>
+      <!-- Campo oculto para debug, se quiser ver o texto bruto -->
+      <div class="campo" id="debugCampo" style="display:none;">
+        <label>Texto bruto (OCR):</label>
+        <input type="text" id="textoBruto" readonly>
+      </div>
       <div class="botoes">
         <button id="adicionarBtn" class="btn">➕ Adicionar à lista e escanear próximo</button>
+        <button id="corrigirBtn" class="btn secundario">✏️ Corrigir manualmente</button>
         <button id="escanearOutroBtn" class="btn secundario">❌ Descartar e escanear outro</button>
       </div>
     </div>
