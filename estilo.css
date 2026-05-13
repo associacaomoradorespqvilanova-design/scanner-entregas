@@ -41,7 +41,6 @@ video {
 #capturarBtn:disabled { background: #cccccc; color: #666; }
 .enviar { background: #4CAF50; color: white; }
 .secundario { background: #757575; color: white; }
-#corrigirBtn { background: #FFA726; color: white; } /* botão laranja */
 .resultado { 
   margin-top: 20px; 
   padding: 15px;
