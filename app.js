@@ -1,7 +1,7 @@
 // ==============================
 // CONFIGURAÇÕES
 // ==============================
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxP2Jv1pEJ-m4vLAGPu6gIrO1TY5v_2Xzss4a8xO7f2-55raB0xlh7JgM2ACxiJOWafwQ/exec';
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz0Rwwrv7KqbeTc9iE7gfNW7ub4zvLHch0zxGC1H8Bb_a58tTrycaffzI1wllxghc8tfg/exec';
 const OCR_SPACE_API_KEY = 'K86039269588957'; // <-- Cole sua chave aqui
 
 // ==============================
@@ -128,16 +128,13 @@ async function extrairComOCRSpace(imagemBase64) {
 function extrairDados(texto) {
   console.log('Texto bruto:', texto);
 
-  // 1. Limpeza inicial: remove caracteres estranhos, mantendo letras, números e quebras
   let limpo = texto
     .replace(/[^A-Za-zÀ-Úà-ú0-9\n\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 2. Divide por linhas
   const linhasBrutas = limpo.split('\n').map(l => l.trim()).filter(l => l.length > 2);
 
-  // 3. Remove linhas que são APENAS palavras proibidas (ex.: "DESTINATÁRIO")
   const palavrasProibidas = [
     'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
     'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
@@ -145,9 +142,7 @@ function extrairDados(texto) {
   ];
   const linhas = linhasBrutas.filter(linha => {
     const upper = linha.toUpperCase().trim();
-    // Se a linha inteira for uma dessas palavras, descarta
     if (palavrasProibidas.includes(upper)) return false;
-    // Se a linha tiver apenas uma palavra e for proibida, descarta
     if (upper.split(' ').length === 1 && palavrasProibidas.some(p => upper.startsWith(p))) return false;
     return true;
   });
@@ -155,13 +150,11 @@ function extrairDados(texto) {
   let nome = '';
   let enderecoBruto = '';
 
-  // 4. Estratégia principal: primeira linha válida = nome, restante = endereço
   if (linhas.length >= 2) {
     nome = linhas[0];
     enderecoBruto = linhas.slice(1).join(' ');
   } else if (linhas.length === 1) {
     const linha = linhas[0];
-    // Procura por início de endereço (R, RUA, AV, etc.)
     const regexEnd = /\b(R\s|RUA\s|AV\s|AVENIDA\s|UA\s|TRAVESSA\s|BECO\s|ALAMEDA\s|ESTRADA\s|RODOVIA\s|REPUBLICA\s)/i;
     const match = linha.match(regexEnd);
     if (match) {
@@ -172,16 +165,13 @@ function extrairDados(texto) {
       enderecoBruto = '';
     }
   } else {
-    // Se não sobrou nada, tenta usar as linhas brutas (sem o filtro de proibidas)
     if (linhasBrutas.length > 0) {
       nome = linhasBrutas[0].replace(/[0-9]/g, '').trim();
       enderecoBruto = linhasBrutas.slice(1).join(' ');
     }
   }
 
-  // 5. Limpeza do NOME
   nome = nome.replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
-  // Remove palavras proibidas que ainda possam ter ficado no nome
   palavrasProibidas.forEach(p => {
     const regex = new RegExp('\\b' + p + '\\b', 'gi');
     nome = nome.replace(regex, '');
@@ -191,7 +181,6 @@ function extrairDados(texto) {
     nome = linhas[0].replace(/[0-9]/g, '').trim();
   }
 
-  // 6. Corte cirúrgico do ENDEREÇO no número
   const regexNumero = /\b\d{1,5}\b/;
   const matchNum = enderecoBruto.match(regexNumero);
   let enderecoFinal = '';
@@ -211,6 +200,7 @@ function extrairDados(texto) {
     endereco: enderecoFinal.toUpperCase()
   };
 }
+
 // ==============================
 // ESCANEAR CARTÃO
 // ==============================
@@ -293,7 +283,7 @@ document.getElementById('escanearOutroBtn').addEventListener('click', () => {
 });
 
 // ==============================
-// ENVIAR TUDO
+// ENVIAR TUDO (CORRIGIDO – SEM CORS)
 // ==============================
 document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
   if (listaEntregas.length === 0) {
@@ -302,11 +292,16 @@ document.getElementById('enviarTudoBtn').addEventListener('click', async () => {
   }
   mostrarStatus('Enviando...', '');
   try {
+    // Envia como formulário (application/x-www-form-urlencoded) – igual ao seu jogo!
+    const formData = new URLSearchParams();
+    formData.append('dados', JSON.stringify(listaEntregas));
+
     const resposta = await fetch(WEBAPP_URL, {
       method: 'POST',
-      body: JSON.stringify(listaEntregas),
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: formData.toString()
     });
+
     const resultado = await resposta.json();
     if (resultado.success) {
       mostrarStatus('✅ ' + resultado.message, 'sucesso');
