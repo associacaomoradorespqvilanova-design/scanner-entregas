@@ -8,7 +8,7 @@ const GEMINI_API_KEY =
   'AIzaSyB8vYwWXJPplJkom7-gosOyLEKrpTIOwxI';
 
 const GEMINI_MODEL =
-  'gemini-1.5-flash-latest';
+  'gemini-1.5-flash';
 
 // ==============================
 // ELEMENTOS
