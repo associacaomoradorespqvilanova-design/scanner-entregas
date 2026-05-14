@@ -128,19 +128,40 @@ async function extrairComOCRSpace(imagemBase64) {
 function extrairDados(texto) {
   console.log('Texto bruto:', texto);
 
+  // 1. Limpeza inicial: remove caracteres estranhos, mantendo letras, números e quebras
   let limpo = texto
     .replace(/[^A-Za-zÀ-Úà-ú0-9\n\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  const linhas = limpo.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-  let nome = '', enderecoBruto = '';
+  // 2. Divide por linhas
+  const linhasBrutas = limpo.split('\n').map(l => l.trim()).filter(l => l.length > 2);
 
+  // 3. Remove linhas que são APENAS palavras proibidas (ex.: "DESTINATÁRIO")
+  const palavrasProibidas = [
+    'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
+    'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
+    'CIDADE', 'ESTADO', 'BAIRRO'
+  ];
+  const linhas = linhasBrutas.filter(linha => {
+    const upper = linha.toUpperCase().trim();
+    // Se a linha inteira for uma dessas palavras, descarta
+    if (palavrasProibidas.includes(upper)) return false;
+    // Se a linha tiver apenas uma palavra e for proibida, descarta
+    if (upper.split(' ').length === 1 && palavrasProibidas.some(p => upper.startsWith(p))) return false;
+    return true;
+  });
+
+  let nome = '';
+  let enderecoBruto = '';
+
+  // 4. Estratégia principal: primeira linha válida = nome, restante = endereço
   if (linhas.length >= 2) {
     nome = linhas[0];
     enderecoBruto = linhas.slice(1).join(' ');
   } else if (linhas.length === 1) {
     const linha = linhas[0];
+    // Procura por início de endereço (R, RUA, AV, etc.)
     const regexEnd = /\b(R\s|RUA\s|AV\s|AVENIDA\s|UA\s|TRAVESSA\s|BECO\s|ALAMEDA\s|ESTRADA\s|RODOVIA\s|REPUBLICA\s)/i;
     const match = linha.match(regexEnd);
     if (match) {
@@ -150,14 +171,27 @@ function extrairDados(texto) {
       nome = linha;
       enderecoBruto = '';
     }
+  } else {
+    // Se não sobrou nada, tenta usar as linhas brutas (sem o filtro de proibidas)
+    if (linhasBrutas.length > 0) {
+      nome = linhasBrutas[0].replace(/[0-9]/g, '').trim();
+      enderecoBruto = linhasBrutas.slice(1).join(' ');
+    }
   }
 
+  // 5. Limpeza do NOME
   nome = nome.replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Remove palavras proibidas que ainda possam ter ficado no nome
+  palavrasProibidas.forEach(p => {
+    const regex = new RegExp('\\b' + p + '\\b', 'gi');
+    nome = nome.replace(regex, '');
+  });
   nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   if (!nome && linhas.length > 0) {
     nome = linhas[0].replace(/[0-9]/g, '').trim();
   }
 
+  // 6. Corte cirúrgico do ENDEREÇO no número
   const regexNumero = /\b\d{1,5}\b/;
   const matchNum = enderecoBruto.match(regexNumero);
   let enderecoFinal = '';
@@ -177,7 +211,6 @@ function extrairDados(texto) {
     endereco: enderecoFinal.toUpperCase()
   };
 }
-
 // ==============================
 // ESCANEAR CARTÃO
 // ==============================
