@@ -1,7 +1,7 @@
 // ==============================
 // CONFIGURAÇÕES
 // ==============================
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwkD9N_xTKfs9Dn5cvGVu61m3zLetDqmmlvomP2YnqPDc14PyWDpYjPhcDWlfvcg7bknw/exec';
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxP2Jv1pEJ-m4vLAGPu6gIrO1TY5v_2Xzss4a8xO7f2-55raB0xlh7JgM2ACxiJOWafwQ/exec';
 const OCR_SPACE_API_KEY = 'K86039269588957'; // <-- Cole sua chave aqui
 
 // ==============================
