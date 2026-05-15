@@ -118,11 +118,14 @@ async function extrairComOCRSpace(imagemBase64) {
 function extrairDados(texto) {
   console.log('OCR original:', texto);
 
-  // 1. Limpeza leve
+  // 1. Limpeza leve: remove caracteres estranhos, mas preserva quebras de linha
   let limpo = texto
-    .replace(/[^A-Za-zÀ-Úà-ú0-9\n\s]/g, ' ')
+    .replace(/[^\wÀ-ú\s\n]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // ** NOVO: remove a palavra "DESTINATARIO/DESTINATÁRIO" se for a primeira linha **
+  limpo = limpo.replace(/^DESTINAT[ÁA]RIO\s*\n?/i, '').trim();
 
   // 2. Tenta dividir por quebras de linha
   let linhas = limpo
@@ -140,7 +143,6 @@ function extrairDados(texto) {
       const enderecoBruto = limpo.substring(idx).trim();
       linhas = [nome, enderecoBruto];
     } else {
-      // Nenhum logradouro conhecido: assume que tudo é nome
       linhas = [limpo, ''];
     }
   }
@@ -161,7 +163,6 @@ function extrairDados(texto) {
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
     } else {
       enderecoFinal = linhaEndereco;
-      // Corta no primeiro número de casa
       const matchNum = enderecoFinal.match(/\b\d{1,5}\b/);
       if (matchNum) {
         enderecoFinal = enderecoFinal.substring(0, matchNum.index + matchNum[0].length).trim();
@@ -169,14 +170,8 @@ function extrairDados(texto) {
     }
   }
 
-  // 4. Limpeza do NOME
-  // Remove números e pontuações
+  // 4. Limpeza do NOME (apenas letras, sem números, sem pontuações)
   nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
-
-  // Remove palavras proibidas do nome (DESTINATARIO, etc.)
-  const proibidas = ['DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE'];
-  proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
-
   nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   if (!nome && linhas.length > 0) {
     nome = linhas[0].replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
