@@ -118,15 +118,11 @@ async function extrairComOCRSpace(imagemBase64) {
 function extrairDados(texto) {
   console.log('OCR original:', texto);
 
-  // 1. Limpeza e remoção de palavras proibidas NO INÍCIO
+  // 1. Limpeza leve
   let limpo = texto
-    .replace(/[^\wÀ-ú\s\n]/g, ' ')
+    .replace(/[^A-Za-zÀ-Úà-ú0-9\n\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-
-  // Remove palavras indesejadas que podem vir antes do nome (ex: "DESTINATARIO")
-  const palavrasIniciais = /^(DESTINATARIO|DESTINATÁRIO|REMETENTE|ENDERECO|ENDEREÇO|TELEFONE|TEL|CEP|CIDADE|ESTADO|BAIRRO)\s*/i;
-  limpo = limpo.replace(palavrasIniciais, '').trim();
 
   // 2. Tenta dividir por quebras de linha
   let linhas = limpo
@@ -144,6 +140,7 @@ function extrairDados(texto) {
       const enderecoBruto = limpo.substring(idx).trim();
       linhas = [nome, enderecoBruto];
     } else {
+      // Nenhum logradouro conhecido: assume que tudo é nome
       linhas = [limpo, ''];
     }
   }
@@ -155,6 +152,7 @@ function extrairDados(texto) {
   if (linhas.length >= 2) {
     let linhaEndereco = linhas[1];
 
+    // Reorganiza "23 RUA SÃO JOSÉ" -> "RUA SÃO JOSÉ 23"
     const matchNumAntes = linhaEndereco.match(/^(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R\s|PROJETADA|PROJETADO)\s+(.+)/i);
     if (matchNumAntes) {
       const tipoLog = matchNumAntes[2].toUpperCase().replace(/\s+$/, '');
@@ -163,6 +161,7 @@ function extrairDados(texto) {
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
     } else {
       enderecoFinal = linhaEndereco;
+      // Corta no primeiro número de casa
       const matchNum = enderecoFinal.match(/\b\d{1,5}\b/);
       if (matchNum) {
         enderecoFinal = enderecoFinal.substring(0, matchNum.index + matchNum[0].length).trim();
@@ -170,18 +169,19 @@ function extrairDados(texto) {
     }
   }
 
-  // 4. Limpeza do NOME (remove números, pontuações e palavras proibidas)
+  // 4. Limpeza do NOME
+  // Remove números e pontuações
   nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Remove palavras proibidas do nome (DESTINATARIO, etc.)
+  const proibidas = ['DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE'];
+  proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
+
   nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   if (!nome && linhas.length > 0) {
     nome = linhas[0].replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
     nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   }
-
-  // Garante que palavras proibidas não permaneçam no nome
-  const proibidas = ['DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE'];
-  proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
-  nome = nome.replace(/\s+/g, ' ').trim();
 
   // 5. Limpeza final do ENDEREÇO
   enderecoFinal = enderecoFinal.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
