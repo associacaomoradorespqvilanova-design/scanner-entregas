@@ -118,79 +118,89 @@ async function extrairComOCRSpace(imagemBase64) {
 function extrairDados(texto) {
   console.log('OCR original:', texto);
 
-  // 1. Limpeza inicial
+  // 1. Limpeza inicial e normalização de quebras
   let limpo = texto
     .replace(/[^A-Za-zÀ-Úà-ú0-9\n\s]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\r\n/g, '\n')   // normaliza Windows
+    .replace(/\r/g, '\n')     // normaliza Mac antigo
+    .replace(/\n{2,}/g, '\n') // remove múltiplas quebras
     .trim();
 
-  // 2. Divide por linhas, remove linhas muito curtas
+  // 2. Divide por linhas
   const linhasBrutas = limpo.split('\n').map(l => l.trim()).filter(l => l.length > 2);
   console.log('Linhas detectadas:', linhasBrutas);
 
-  // Palavras proibidas (se a primeira linha for uma dessas, ignoramos)
-  const proibidas = [
-    'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
-    'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
-    'CIDADE', 'ESTADO', 'BAIRRO', 'LIXAO', 'PARQUE VILA NOVA',
-    'DUQUE DE CAXIAS', 'DUQUE DE CAXIAS,RJ', 'RJ', 'BRAZIL'
+  // Palavras que indicam início de endereço (ampliado)
+  const inicioEndereco = [
+    'RUA', 'AVENIDA', 'TRAVESSA', 'ALAMEDA', 'ESTRADA', 'RODOVIA',
+    'BECO', 'PRAÇA', 'LARGO', 'VIELA', 'PROJETADA', 'PROJETADO',
+    'R ', 'AV ', 'TV ', 'TRAV ', 'ESTR ', 'ROD ', 'PC ', 'AL ', 'VL ', 'PRACA'
   ];
 
-  // Remove a primeira linha se for uma palavra proibida
-  while (linhasBrutas.length > 0 && proibidas.includes(linhasBrutas[0].toUpperCase().trim())) {
-    linhasBrutas.shift();
-  }
+  // Remove linhas que são APENAS ruídos comuns (opcional, pode ajudar)
+  const palavrasProibidas = [
+    'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
+    'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
+    'CIDADE', 'ESTADO', 'BAIRRO', 'LIXAO', 'BRASIL', 'BRAZIL'
+  ];
 
+  // 3. Identificar nome e endereço
   let nome = '';
   let enderecoFinal = '';
 
-  // 3. Nome = primeira linha válida (SOMENTE a primeira)
-  if (linhasBrutas.length >= 1) {
-    nome = linhasBrutas[0].replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
-    nome = nome.split(' ').filter(p => p.length > 2).join(' ');
-    if (!nome) nome = linhasBrutas[0].replace(/[0-9]/g, '').trim();
-  }
-
-  // 4. Endereço = segunda linha (SOMENTE a segunda, se existir)
   if (linhasBrutas.length >= 2) {
+    // Caso ideal: nome na primeira linha, endereço na segunda
+    nome = linhasBrutas[0];
     const linhaEndereco = linhasBrutas[1];
 
-    // Verifica se o número vem antes da rua: "23 RUA SÃO JOSÉ"
-    const matchNumAntes = linhaEndereco.match(/^(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R)\s+(.+)/i);
+    // Reorganiza número antes da rua (ex: "23 RUA SÃO JOSÉ" → "RUA SÃO JOSÉ 23")
+    const matchNumAntes = linhaEndereco.match(/^(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R\s|PROJETADA|PROJETADO)\s+(.+)/i);
     if (matchNumAntes) {
-      const tipoLog = matchNumAntes[2].toUpperCase() === 'R' ? 'RUA' : matchNumAntes[2].toUpperCase();
+      const tipoLog = matchNumAntes[2].toUpperCase().replace(/\s+$/, '');
       const nomeRua = matchNumAntes[3].trim();
       const numero = matchNumAntes[1];
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
     } else {
-      // Formato normal: "RUA SÃO JOSÉ 23"
-      enderecoFinal = linhaEndereco.replace(/,/g, ' ');
-      const regexNumero = /\b\d{1,5}\b/;
-      const matchNum = enderecoFinal.match(regexNumero);
+      enderecoFinal = linhaEndereco;
+      // Corta no primeiro número
+      const matchNum = enderecoFinal.match(/\b\d{1,5}\b/);
       if (matchNum) {
-        const posFim = matchNum.index + matchNum[0].length;
-        enderecoFinal = enderecoFinal.substring(0, posFim).trim();
+        enderecoFinal = enderecoFinal.substring(0, matchNum.index + matchNum[0].length).trim();
       }
     }
   } else if (linhasBrutas.length === 1) {
-    // Se só tem uma linha, tenta separar por logradouro
+    // Uma única linha: procura pelo início do endereço
     const linha = linhasBrutas[0];
-    const regexEnd = /\b(R\s|RUA\s|AV\s|AVENIDA\s|UA\s|TRAVESSA\s|BECO\s|ALAMEDA\s|ESTRADA\s|RODOVIA\s|REPUBLICA\s)/i;
+    // Cria regex com todos os inícios possíveis
+    const regexEnd = new RegExp('\\b(' + inicioEndereco.join('|') + ')\\s', 'i');
     const match = linha.match(regexEnd);
     if (match) {
       nome = linha.substring(0, match.index).trim();
       enderecoFinal = linha.substring(match.index).trim();
+      // Corta no número
       const matchNum = enderecoFinal.match(/\b\d{1,5}\b/);
       if (matchNum) {
         enderecoFinal = enderecoFinal.substring(0, matchNum.index + matchNum[0].length).trim();
       }
     } else {
+      // Nenhum logradouro conhecido: assume tudo como nome
       nome = linha;
       enderecoFinal = '';
     }
   }
 
-  // 5. Limpeza final
+  // 4. Limpeza do NOME (remove números, pontuação, palavras proibidas)
+  nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  palavrasProibidas.forEach(p => {
+    nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), '');
+  });
+  nome = nome.split(' ').filter(p => p.length > 2).join(' ');
+  if (!nome && linhasBrutas.length > 0) {
+    nome = linhasBrutas[0].replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    nome = nome.split(' ').filter(p => p.length > 2).join(' ');
+  }
+
+  // 5. Limpeza final do ENDEREÇO
   enderecoFinal = enderecoFinal.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
 
   console.log('Nome:', nome);
