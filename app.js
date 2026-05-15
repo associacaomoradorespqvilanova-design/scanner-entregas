@@ -120,12 +120,9 @@ function extrairDados(texto) {
 
   // 1. Limpeza leve: remove caracteres estranhos, mas preserva quebras de linha
   let limpo = texto
-    .replace(/[^\wÀ-ú\s\n]/g, ' ')
+    .replace(/[^\wÀ-ú\s\n]/g, ' ')  // remove símbolos, mantém letras/números/espaços/quebras
     .replace(/\s+/g, ' ')
     .trim();
-
-  // ** NOVO: remove a palavra "DESTINATARIO/DESTINATÁRIO" se for a primeira linha **
-  limpo = limpo.replace(/^DESTINAT[ÁA]RIO\s*\n?/i, '').trim();
 
   // 2. Tenta dividir por quebras de linha
   let linhas = limpo
@@ -143,6 +140,7 @@ function extrairDados(texto) {
       const enderecoBruto = limpo.substring(idx).trim();
       linhas = [nome, enderecoBruto];
     } else {
+      // Nenhum logradouro conhecido: assume que tudo é nome
       linhas = [limpo, ''];
     }
   }
@@ -163,6 +161,7 @@ function extrairDados(texto) {
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
     } else {
       enderecoFinal = linhaEndereco;
+      // Corta no primeiro número de casa
       const matchNum = enderecoFinal.match(/\b\d{1,5}\b/);
       if (matchNum) {
         enderecoFinal = enderecoFinal.substring(0, matchNum.index + matchNum[0].length).trim();
@@ -174,6 +173,7 @@ function extrairDados(texto) {
   nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
   nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   if (!nome && linhas.length > 0) {
+    // fallback
     nome = linhas[0].replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
     nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   }
