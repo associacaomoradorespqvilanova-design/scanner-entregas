@@ -116,14 +116,25 @@ async function extrairComOCRSpace(imagemBase64) {
 // EXTRAIR NOME E ENDEREÇO
 // ==============================
 function extrairDados(texto) {
+  console.log('OCR original:', texto);
+
+  // 1. Limpeza inicial
   let limpo = texto
     .replace(/[^A-Za-zÀ-Úà-ú0-9\n\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
+  // 2. Divide por linhas, remove linhas muito curtas
   const linhasBrutas = limpo.split('\n').map(l => l.trim()).filter(l => l.length > 2);
 
-  const proibidas = ['DESTINATARIO','DESTINATÁRIO','REMETENTE','ENDERECO','ENDEREÇO','TELEFONE','TEL','CEP','CIDADE','ESTADO','BAIRRO'];
+  // Palavras proibidas (ignorar linhas que sejam só isso)
+  const proibidas = [
+    'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
+    'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
+    'CIDADE', 'ESTADO', 'BAIRRO', 'LIXAO'  // <-- adicionado LIXAO
+  ];
+
+  // 3. Filtra linhas que são APENAS palavras proibidas
   const linhas = linhasBrutas.filter(linha => {
     const up = linha.toUpperCase().trim();
     if (proibidas.includes(up)) return false;
@@ -131,42 +142,71 @@ function extrairDados(texto) {
     return true;
   });
 
-  let nome = '', enderecoBruto = '';
+  let nome = '';
+  let enderecoBruto = '';
 
+  // 4. Estratégia principal: primeira linha = nome, segunda linha = endereço
+  //    Se houver mais linhas, são bairros/lixo e serão ignoradas.
   if (linhas.length >= 2) {
     nome = linhas[0];
-    enderecoBruto = linhas.slice(1).join(' ');
+    enderecoBruto = linhas[1];  // pega APENAS a segunda linha
   } else if (linhas.length === 1) {
+    // Uma única linha: procura por logradouro para separar
+    const linha = linhas[0];
     const regexEnd = /\b(R\s|RUA\s|AV\s|AVENIDA\s|UA\s|TRAVESSA\s|BECO\s|ALAMEDA\s|ESTRADA\s|RODOVIA\s|REPUBLICA\s)/i;
-    const match = linhas[0].match(regexEnd);
+    const match = linha.match(regexEnd);
     if (match) {
-      nome = linhas[0].substring(0, match.index).trim();
-      enderecoBruto = linhas[0].substring(match.index).trim();
+      nome = linha.substring(0, match.index).trim();
+      enderecoBruto = linha.substring(match.index).trim();
     } else {
-      nome = linhas[0];
+      nome = linha;
       enderecoBruto = '';
     }
   } else if (linhasBrutas.length > 0) {
+    // Nenhuma linha válida após filtro: tenta usar as brutas
     nome = linhasBrutas[0].replace(/[0-9]/g, '').trim();
-    enderecoBruto = linhasBrutas.slice(1).join(' ');
+    enderecoBruto = linhasBrutas.length >= 2 ? linhasBrutas[1] : '';
   }
 
+  // 5. Limpeza do NOME (mantida igual)
   nome = nome.replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
   proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
   nome = nome.split(' ').filter(p => p.length > 2).join(' ');
-
-  const regexNumero = /\b\d{1,5}\b/;
-  const matchNum = enderecoBruto.match(regexNumero);
-  let enderecoFinal = '';
-  if (matchNum) {
-    enderecoFinal = enderecoBruto.substring(0, matchNum.index + matchNum[0].length).trim();
-    enderecoFinal = enderecoFinal.replace(/[,.]+$/g, '');
-  } else {
-    enderecoFinal = enderecoBruto.split(',')[0].trim();
+  if (!nome && linhas.length > 0) {
+    nome = linhas[0].replace(/[0-9]/g, '').trim();
   }
+
+  // 6. Processamento do ENDEREÇO (corte no número + inversão se necessário)
+  let enderecoFinal = '';
+
+  // Verifica se o número vem antes da rua: "23 RUA SÃO JOSÉ"
+  const matchNumAntes = enderecoBruto.match(/^(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|BECO|ALAMEDA|ESTRADA|RODOVIA|R)\s+(.+)/i);
+  if (matchNumAntes) {
+    // Reformata: "RUA SÃO JOSÉ 23"
+    const tipoLogradouro = matchNumAntes[2].toUpperCase() === 'R' ? 'RUA' : matchNumAntes[2].toUpperCase();
+    enderecoFinal = tipoLogradouro + ' ' + matchNumAntes[3].toUpperCase() + ' ' + matchNumAntes[1];
+  } else {
+    // Formato normal: "RUA SÃO JOSÉ 23" ou "RUA SÃO JOSÉ, 23"
+    enderecoFinal = enderecoBruto.replace(/,/g, ' ');
+    // Corta no primeiro número (garante que nada depois do número entre)
+    const regexNumero = /\b\d{1,5}\b/;
+    const matchNum = enderecoFinal.match(regexNumero);
+    if (matchNum) {
+      const posFim = matchNum.index + matchNum[0].length;
+      enderecoFinal = enderecoFinal.substring(0, posFim).trim();
+    }
+  }
+
+  // Remove CEPs e espaços extras
   enderecoFinal = enderecoFinal.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
 
-  return { nome: nome.toUpperCase(), endereco: enderecoFinal.toUpperCase() };
+  console.log('Nome:', nome);
+  console.log('Endereço:', enderecoFinal);
+
+  return {
+    nome: nome.toUpperCase(),
+    endereco: enderecoFinal.toUpperCase()
+  };
 }
 
 // ==============================
