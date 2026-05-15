@@ -120,9 +120,12 @@ function extrairDados(texto) {
 
   // 1. Limpeza leve: remove caracteres estranhos, mas preserva quebras de linha
   let limpo = texto
-    .replace(/[^\wÀ-ú\s\n]/g, ' ')  // remove símbolos, mantém letras/números/espaços/quebras
+    .replace(/[^\wÀ-ú\s\n]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Remove a palavra DESTINATARIO/DESTINATÁRIO se for a primeira linha
+  limpo = limpo.replace(/^DESTINAT[ÁA]RIO\s*\n?/i, '').trim();
 
   // 2. Tenta dividir por quebras de linha
   let linhas = limpo
@@ -140,7 +143,6 @@ function extrairDados(texto) {
       const enderecoBruto = limpo.substring(idx).trim();
       linhas = [nome, enderecoBruto];
     } else {
-      // Nenhum logradouro conhecido: assume que tudo é nome
       linhas = [limpo, ''];
     }
   }
@@ -153,7 +155,10 @@ function extrairDados(texto) {
     let linhaEndereco = linhas[1];
 
     // Reorganiza "23 RUA SÃO JOSÉ" -> "RUA SÃO JOSÉ 23"
-    const matchNumAntes = linhaEndereco.match(/^(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R\s|PROJETADA|PROJETADO)\s+(.+)/i);
+    const matchNumAntes = linhaEndereco.match(
+      /^(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R\s|PROJETADA|PROJETADO)\s+([A-ZÀ-Ú\s]+?)\s*(?:\d|LIXAO|PARQUE|VILA|BAIRRO|CENTRO|JARDIM|DUQUE|CAXIAS|RJ|SP|CEP|$)/i
+    );
+
     if (matchNumAntes) {
       const tipoLog = matchNumAntes[2].toUpperCase().replace(/\s+$/, '');
       const nomeRua = matchNumAntes[3].trim();
@@ -161,7 +166,6 @@ function extrairDados(texto) {
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
     } else {
       enderecoFinal = linhaEndereco;
-      // Corta no primeiro número de casa
       const matchNum = enderecoFinal.match(/\b\d{1,5}\b/);
       if (matchNum) {
         enderecoFinal = enderecoFinal.substring(0, matchNum.index + matchNum[0].length).trim();
@@ -173,7 +177,6 @@ function extrairDados(texto) {
   nome = nome.replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
   nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   if (!nome && linhas.length > 0) {
-    // fallback
     nome = linhas[0].replace(/[\d,.\-]+/g, ' ').replace(/\s+/g, ' ').trim();
     nome = nome.split(' ').filter(p => p.length > 2).join(' ');
   }
