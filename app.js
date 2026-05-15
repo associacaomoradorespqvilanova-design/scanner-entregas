@@ -124,10 +124,10 @@ function extrairDados(texto) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // 2. Divide por linhas
+  // 2. Divide por linhas (pode vir tudo em uma só)
   const linhasBrutas = limpo.split('\n').map(l => l.trim()).filter(l => l.length > 2);
 
-  // Palavras proibidas
+  // Palavras proibidas (ignorar linhas que sejam só isso)
   const proibidas = [
     'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
     'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
@@ -138,30 +138,32 @@ function extrairDados(texto) {
   const linhas = linhasBrutas.filter(linha => {
     const up = linha.toUpperCase().trim();
     if (proibidas.includes(up)) return false;
-    if (up.split(' ').length === 1 && proibidas.some(p => up.startsWith(p))) return false;
     return true;
   });
 
   let nome = '';
   let enderecoFinal = '';
 
-  // 3. Extrai nome (primeira linha válida)
+  // 3. Extrai nome (primeira linha válida, se existir)
   if (linhas.length > 0) {
     nome = linhas[0].replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
     nome = nome.split(' ').filter(p => p.length > 2).join(' ');
     if (!nome) nome = linhas[0].replace(/[0-9]/g, '').trim();
-  } else {
-    nome = '';
   }
 
-  // 4. Extrai endereço usando regex diretamente no texto limpo
-  //    (ignora quebras de linha, procura padrão de logradouro + número ou número + logradouro)
-  const textoCompleto = linhas.join(' '); // junta todas as linhas em uma única string
+  // Se o nome ainda contiver coisas como "LIXAO", remove
+  proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
+  nome = nome.replace(/\s+/g, ' ').trim();
+
+  // 4. Extrai endereço usando regex diretamente no texto completo
+  const textoCompleto = linhas.join(' '); // junta todas as linhas
 
   // Padrão 1: número + logradouro + nome da rua (ex: "23 RUA SÃO JOSÉ")
-  const padraoNumAntes = /\b(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R)\s+([A-ZÀ-Ú\s]+?)(?:\s+\d{1,5}|\s*$)/i;
+  // Agora captura o nome da rua até encontrar uma palavra que não seja parte do nome (palavras com 4+ letras que não são preposições) ou fim
+  const padraoNumAntes = /\b(\d{1,5})\s+(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R)\s+((?:[A-ZÀ-Ú]{1,3}\s+)*[A-ZÀ-Ú]{3,}(?:\s+[A-ZÀ-Ú]{1,3})*)\b(?:\s+(?:LIXAO|PARQUE|VILA|BAIRRO|CENTRO|JARDIM|JD|PQ|VL|SETOR|QD|QUADRA|LOTE|LT|CASA|APTO|APARTAMENTO|BLOCO|BL|CEP|CIDADE|ESTADO|RJ|SP|MG|ES|DF|GO|PR|SC|RS|PE|BA|CE|MA|PA|AM|RO|AC|RR|AP|TO|SE|AL|PB|RN|PI|MS|MT|DF|BRASIL)\b|\s*\d{5}-\d{3}|\s*$)/i;
+
   // Padrão 2: logradouro + nome da rua + número (ex: "RUA SÃO JOSÉ 23")
-  const padraoNumDepois = /\b(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R)\s+([A-ZÀ-Ú\s]+?)\s+(\d{1,5})/i;
+  const padraoNumDepois = /\b(RUA|AV|AVENIDA|TRAVESSA|TRV|BECO|BC|ALAMEDA|ESTRADA|RODOVIA|R)\s+([A-ZÀ-Ú\s]+?)\s+(\d{1,5})\b/i;
 
   let match = textoCompleto.match(padraoNumAntes);
   if (match) {
@@ -170,6 +172,18 @@ function extrairDados(texto) {
     const nomeRua = match[3].trim();
     const numero = match[1];
     enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
+
+    // Se o nome ainda não foi extraído (porque estava tudo na mesma linha), extrai agora
+    if (!nome || linhas.length === 1) {
+      const idxEndereco = textoCompleto.indexOf(match[0]);
+      if (idxEndereco > 0) {
+        nome = textoCompleto.substring(0, idxEndereco).trim();
+        nome = nome.replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+        nome = nome.split(' ').filter(p => p.length > 2).join(' ');
+        proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
+        nome = nome.replace(/\s+/g, ' ').trim();
+      }
+    }
   } else {
     match = textoCompleto.match(padraoNumDepois);
     if (match) {
@@ -178,10 +192,22 @@ function extrairDados(texto) {
       const nomeRua = match[2].trim();
       const numero = match[3];
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
+
+      // Se o nome não foi extraído, pega o que vem antes do endereço
+      if (!nome || linhas.length === 1) {
+        const idxEndereco = textoCompleto.indexOf(match[0]);
+        if (idxEndereco > 0) {
+          nome = textoCompleto.substring(0, idxEndereco).trim();
+          nome = nome.replace(/[0-9,.\-]/g, ' ').replace(/\s+/g, ' ').trim();
+          nome = nome.split(' ').filter(p => p.length > 2).join(' ');
+          proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
+          nome = nome.replace(/\s+/g, ' ').trim();
+        }
+      }
     }
   }
 
-  // Se nenhum padrão foi encontrado, usa fallback (primeira linha que parece ter logradouro)
+  // Fallback: se nenhum padrão encontrado, procura em cada linha
   if (!enderecoFinal) {
     for (let i = 1; i < linhas.length; i++) {
       const linha = linhas[i];
@@ -199,6 +225,13 @@ function extrairDados(texto) {
   // Remove CEPs e espaços extras
   enderecoFinal = enderecoFinal.replace(/\b\d{5}-\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
 
+  // Se o nome ainda está vazio, tenta usar a primeira linha bruta
+  if (!nome && linhasBrutas.length > 0) {
+    nome = linhasBrutas[0].replace(/[0-9]/g, '').trim();
+    proibidas.forEach(p => { nome = nome.replace(new RegExp('\\b' + p + '\\b', 'gi'), ''); });
+    nome = nome.replace(/\s+/g, ' ').trim();
+  }
+
   console.log('Nome:', nome);
   console.log('Endereço:', enderecoFinal);
 
@@ -207,7 +240,6 @@ function extrairDados(texto) {
     endereco: enderecoFinal.toUpperCase()
   };
 }
-
 // ==============================
 // ESCANEAR CARTÃO
 // ==============================
