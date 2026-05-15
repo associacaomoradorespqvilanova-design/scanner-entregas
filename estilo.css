@@ -22,9 +22,10 @@ h3 { margin: 15px 0 5px; color: #333; }
 .camera-area { position: relative; text-align: center; }
 video {
   width: 100%;
+  max-height: 300px;        /* altura máxima reduzida */
+  object-fit: cover;        /* corta o excesso em vez de distorcer */
   border-radius: 8px;
   background: #000;
-  margin-bottom: 10px;
 }
 .btn {
   padding: 14px 20px;
