@@ -3,7 +3,6 @@
 // ==============================
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwQNReVOuA-XboGCM77eNmLEHW7hzagm-k5azeZVutr9ytC2TBs_QWxvw6igmr6ldmkPw/exec';
 const OCR_SPACE_API_KEY = 'K86039269588957'; // <-- Cole sua chave aqui
-
 // ==============================
 // ELEMENTOS
 // ==============================
@@ -113,7 +112,7 @@ async function extrairComOCRSpace(imagemBase64) {
 }
 
 // ==============================
-// EXTRAIR NOME E ENDEREÇO
+// EXTRAIR NOME E ENDEREÇO (VERSÃO FINAL)
 // ==============================
 function extrairDados(texto) {
   console.log('OCR original:', texto);
@@ -124,24 +123,18 @@ function extrairDados(texto) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Remove palavras que são títulos e não fazem parte do nome/endereço
-  const titulos = [
-    'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE',
-    'NOME', 'ENDERECO', 'ENDEREÇO', 'TELEFONE', 'TEL', 'CEP',
-    'CIDADE', 'ESTADO', 'BAIRRO'
-  ];
-  
-  // Remove cada título se aparecer como uma linha inteira (sozinho)
-  titulos.forEach(t => {
-    const regexLinha = new RegExp('^' + t + '\\s*$', 'gim');
-    limpo = limpo.replace(regexLinha, '');
-  });
+  // Remove palavras-título que poluem os dados
+  limpo = limpo
+    .replace(/^(Nome|Endere[çc]o)\s*:?\s*/gim, '')
+    .replace(/^DESTINAT[ÁA]RIO\s*:?\s*/gim, '')
+    .replace(/^REMETENTE\s*:?\s*/gim, '');
 
-  // Remove "Nome:" ou "Endereço:" como prefixo de linha (seguido de espaço/quebra)
-  limpo = limpo.replace(/^(Nome|Endere[çc]o)\s*:\s*/gim, '');
-
-  // Remove linhas em branco extras
-  limpo = limpo.replace(/\n{2,}/g, '\n').trim();
+  // Remove linhas que sejam APENAS essas palavras
+  const titulos = ['NOME', 'ENDERECO', 'ENDEREÇO', 'DESTINATARIO', 'DESTINATÁRIO', 'REMETENTE'];
+  limpo = limpo.split('\n').filter(linha => {
+    const limpa = linha.trim().toUpperCase();
+    return !titulos.includes(limpa) && !titulos.some(t => limpa === t + ':');
+  }).join('\n');
 
   // 2. Divide por quebras de linha
   let linhas = limpo
@@ -149,14 +142,13 @@ function extrairDados(texto) {
     .map(l => l.trim())
     .filter(l => l.length > 2);
 
-  // Se não houver quebras, usa a regex de logradouro para separar
+  // Se não houver quebras, usa a regex de logradouro
   if (linhas.length <= 1) {
-    const inicioLogradouro = /\b(RUA|AVENIDA|TRAVESSA|ALAMEDA|ESTRADA|RODOVIA|BECO|PRAÇA|LARGO|VIELA|PROJETADA|PROJETADO|R\s|AV\s|TV\s|TRAV\s|ESTR\s|ROD\s|PC\s|AL\s|VL\s)\b/i;
-    const match = limpo.match(inicioLogradouro);
+    const inicioLog = /\b(RUA|AVENIDA|TRAVESSA|ALAMEDA|ESTRADA|RODOVIA|BECO|PRAÇA|LARGO|VIELA|PROJETADA|PROJETADO|R\s|AV\s|TV\s|TRAV\s|ESTR\s|ROD\s|PC\s|AL\s|VL\s)\b/i;
+    const match = limpo.match(inicioLog);
     if (match) {
-      const idx = match.index;
-      const nome = limpo.substring(0, idx).trim();
-      const enderecoBruto = limpo.substring(idx).trim();
+      const nome = limpo.substring(0, match.index).trim();
+      const enderecoBruto = limpo.substring(match.index).trim();
       linhas = [nome, enderecoBruto];
     } else {
       linhas = [limpo, ''];
@@ -181,7 +173,7 @@ function extrairDados(texto) {
       const numero = matchNumAntes[1];
       enderecoFinal = tipoLog + ' ' + nomeRua + ' ' + numero;
     } else {
-      // Corte na lista de palavras proibidas
+      // Corte por lista de palavras proibidas
       const stopWords = new Set([
         'LIXAO', 'PARQUE', 'VILA', 'BAIRRO', 'CENTRO', 'JARDIM', 'JD',
         'DUQUE', 'CAXIAS', 'NOVA', 'NOVO', 'PQ', 'VL', 'SETOR', 'QD',
@@ -221,20 +213,25 @@ function extrairDados(texto) {
     endereco: enderecoFinal.toUpperCase()
   };
 }
+
 // ==============================
 // ESCANEAR CARTÃO
 // ==============================
 capturarBtn.addEventListener('click', async () => {
   if (!cameraPronta) return;
+
   capturarBtn.disabled = true;
   capturarBtn.textContent = '⏳ Processando...';
 
   try {
     await new Promise(resolve => setTimeout(resolve, 500));
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
     melhorarImagem();
+
     const imagemBase64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
     const textoBruto = await extrairComOCRSpace(imagemBase64);
     const { nome, endereco } = extrairDados(textoBruto);
@@ -245,19 +242,21 @@ capturarBtn.addEventListener('click', async () => {
     enderecoInput.value = endereco;
     document.getElementById('resultado').style.display = 'block';
 
-    if (!nome || !endereco) {
-      nomeInput.readOnly = false;
-      enderecoInput.readOnly = false;
+    // CAMPOS SEMPRE EDITÁVEIS
+    nomeInput.readOnly = false;
+    enderecoInput.readOnly = false;
+
+    if (!nome && !endereco) {
       document.getElementById('mensagemOCR').style.display = 'block';
+      document.getElementById('mensagemOCR').textContent = '⚠️ Não reconhecido. Digite os dados.';
     } else {
-      nomeInput.readOnly = true;
-      enderecoInput.readOnly = true;
       document.getElementById('mensagemOCR').style.display = 'none';
     }
   } catch (err) {
     console.error(err);
     alert('Erro no OCR: ' + err.message);
   }
+
   capturarBtn.disabled = false;
   capturarBtn.textContent = '📷 Escanear Cartão';
 });
@@ -269,8 +268,10 @@ document.getElementById('adicionarBtn').addEventListener('click', () => {
   const nome = document.getElementById('nome').value.trim();
   const endereco = document.getElementById('endereco').value.trim();
   if (!nome || !endereco) { alert('Nome e endereço obrigatórios'); return; }
+
   listaEntregas.push({
-    nome, endereco,
+    nome,
+    endereco,
     quantidade: document.getElementById('quantidade').value,
     tipo: document.getElementById('tipo').value,
     numero: document.getElementById('numero').value,
@@ -278,6 +279,7 @@ document.getElementById('adicionarBtn').addEventListener('click', () => {
     telefone: document.getElementById('telefone').value,
     data: document.getElementById('data').value
   });
+
   atualizarListaVisual();
   document.getElementById('resultado').style.display = 'none';
   document.getElementById('nome').value = '';
@@ -291,7 +293,7 @@ document.getElementById('escanearOutroBtn').addEventListener('click', () => {
 });
 
 // ==============================
-// ENVIAR TUDO (JSONP – SEM CORS)
+// ENVIAR TUDO (JSONP)
 // ==============================
 document.getElementById('enviarTudoBtn').addEventListener('click', () => {
   if (listaEntregas.length === 0) { alert('Nenhum cartão.'); return; }
@@ -301,7 +303,6 @@ document.getElementById('enviarTudoBtn').addEventListener('click', () => {
   const dadosJSON = encodeURIComponent(JSON.stringify(listaEntregas));
   const url = `${WEBAPP_URL}?callback=${callbackName}&dados=${dadosJSON}`;
 
-  // Define a função global de callback
   window[callbackName] = function(resposta) {
     if (resposta.success) {
       mostrarStatus('✅ ' + resposta.message, 'sucesso');
@@ -310,7 +311,6 @@ document.getElementById('enviarTudoBtn').addEventListener('click', () => {
     } else {
       mostrarStatus('❌ ' + resposta.message, 'erro');
     }
-    // Remove o script injetado e a função global
     document.body.removeChild(script);
     delete window[callbackName];
   };
